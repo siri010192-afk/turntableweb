@@ -154,6 +154,54 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
   .app.pip .controls { transition: none; transform: translate(-50%, 0); }
 }
 
+/* 진행 바: 가로로 넓은 작은 창의 정보 패널에서만 보인다 */
+.progress { display: none; }
+.progress-fill { height: 100%; width: 0; background: var(--text); border-radius: inherit; }
+
+/* 작은 창 구간 (app.js가 pip-tiny / pip-normal / pip-wide를 붙인다, renderer.js pipModeFor와 같은 기준) */
+
+/* 아주 작을 때: 글자 없이 LP만. 버튼은 마우스를 올리면 LP 위 가운데에 */
+.app.pip.pip-tiny .hud { top: 0; height: auto; padding: 0; background: none; }
+.app.pip.pip-tiny .info { display: none; }
+.app.pip.pip-tiny .controls { bottom: auto; top: 50%; transform: translate(-50%, -50%) scale(0.94); }
+.app.pip.pip-tiny:hover .controls,
+.app.pip.pip-tiny .controls:focus-within { transform: translate(-50%, -50%); }
+
+/* 일반 크기: 제목·가수는 왼쪽 아래 그대로, 버튼은 제목 줄 바로 위 오른쪽에 (제목을 가리지 않게) */
+.app.pip.pip-normal .controls { left: auto; right: 8px; bottom: calc(100% + 2px); transform: translateY(6px); }
+.app.pip.pip-normal:hover .controls,
+.app.pip.pip-normal .controls:focus-within { transform: none; }
+
+/* 가로로 아주 넓을 때: 톤암 오른쪽 빈 공간에 정보 패널 (제목·가수·진행 바·버튼, 버튼은 항상 보임) */
+.app.pip.pip-wide .hud {
+  top: 0;
+  left: var(--pip-panel-left, 55%);
+  height: auto;
+  padding: 12px 14px 14px 4px;
+  justify-content: flex-end;
+  gap: 10px;
+  background: none;
+}
+.app.pip.pip-wide .info { flex: none; align-content: end; }
+.app.pip.pip-wide .title { font-size: 16px; }
+.app.pip.pip-wide .sub { font-size: 13px; margin-top: 2px; }
+.app.pip.pip-wide .progress {
+  display: block;
+  height: 3px;
+  margin-top: 10px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.22);
+  overflow: hidden;
+}
+.app.pip.pip-wide .controls {
+  position: static;
+  align-self: flex-start;
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  background: rgba(12, 11, 10, 0.45);
+}
+
 .hud {
   position: absolute;
   left: 0;

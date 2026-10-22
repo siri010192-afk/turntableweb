@@ -456,16 +456,40 @@ test('세로·가로·iPad 배치에서 톤암이 홈에 맞고 화면 안에 �
   }
 });
 
-test('작은 창(PiP) 배치에서도 톤암이 홈에 맞고 LP가 충분히 크다', () => {
-  for (const [w, h] of [[340, 380], [300, 300], [280, 420], [420, 300]]) {
+test('작은 창(PiP) 일반 크기: 톤암이 맞고 LP가 제목 자리를 덮지 않는다', () => {
+  for (const [w, h] of [[340, 380], [300, 300], [280, 420], [300, 190], [340, 200]]) {
     const layout = computeLayout(w, h, undefined, { compact: true });
+    expect(layout.pipMode === 'normal', `${w}x${h} 구간 ${layout.pipMode}`);
     const rig = new TonearmRig({ maxRight: layout.maxRight, maxUp: layout.maxUp });
     expect(rig.fitError < 0.02, `${w}x${h} fitError ${rig.fitError.toFixed(3)}`);
     expect(layout.center.y + rig.pivot.y * layout.radius > 0, `${w}x${h} 피벗이 위로 나감`);
     if (layout.mode === 'portrait') expect(layout.radius >= Math.min(w, h) * 0.3, `${w}x${h} LP가 작음 (${layout.radius})`);
-    // 아래쪽 제목·가수 자리를 LP가 침범하지 않는다
     expect(layout.center.y + layout.radius <= h - COMPACT_TEXT_AREA, `${w}x${h} LP가 제목 자리를 덮음`);
     if (w > h * 1.25) expect(layout.sleeve, `${w}x${h} 가로로 긴 창인데 재킷이 없음`);
+  }
+});
+
+test('작은 창(PiP) 아주 작을 때: 글자 없이 LP·톤암이 창 안에', () => {
+  for (const [w, h] of [[290, 110], [180, 300], [220, 140], [160, 160]]) {
+    const layout = computeLayout(w, h, undefined, { compact: true });
+    expect(layout.pipMode === 'tiny', `${w}x${h} 구간 ${layout.pipMode}`);
+    const rig = new TonearmRig({ maxRight: layout.maxRight, maxUp: layout.maxUp });
+    expect(rig.fitError < 0.02, `${w}x${h} fitError ${rig.fitError.toFixed(3)}`);
+    expect(layout.center.x - layout.radius >= -1 && layout.center.y + layout.radius <= h + 1, `${w}x${h} LP가 창 밖`);
+    const pivotX = layout.center.x + rig.pivot.x * layout.radius;
+    expect(pivotX <= w, `${w}x${h} 톤암 받침이 창 밖 (${pivotX.toFixed(0)})`);
+  }
+});
+
+test('작은 창(PiP) 가로로 넓을 때: 오른쪽 정보 패널이 충분히 넓고 톤암이 패널을 침범하지 않는다', () => {
+  for (const [w, h] of [[400, 190], [420, 200], [700, 200], [900, 300]]) {
+    const layout = computeLayout(w, h, undefined, { compact: true });
+    expect(layout.pipMode === 'wide', `${w}x${h} 구간 ${layout.pipMode}`);
+    const rig = new TonearmRig({ maxRight: layout.maxRight, maxUp: layout.maxUp });
+    expect(rig.fitError < 0.02, `${w}x${h} fitError ${rig.fitError.toFixed(3)}`);
+    expect(w - layout.panelLeft - 12 >= 160, `${w}x${h} 정보 패널이 좁음 (${(w - layout.panelLeft - 12).toFixed(0)})`);
+    const armRight = layout.center.x + (rig.pivot.x + 0.17) * layout.radius;
+    expect(armRight <= layout.panelLeft, `${w}x${h} 톤암이 패널을 침범 (${armRight.toFixed(0)} > ${layout.panelLeft.toFixed(0)})`);
   }
 });
 

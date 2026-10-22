@@ -163,8 +163,25 @@ function start(p) {
 /** 렌더러 배치를 다시 계산하고, 제목 칸 폭이 바뀌었을 수 있으니 전광판이 필요한지 다시 잰다. */
 function relayout() {
   const ok = renderer.layout();
-  if (ok) updateMarquee();
+  if (ok) {
+    applyPipMode();
+    updateMarquee();
+  }
   return ok;
+}
+
+/** 작은 창이면 크기 구간(tiny / normal / wide)을 클래스로 붙이고, wide면 정보 패널 시작 위치를 알려 준다. */
+function applyPipMode() {
+  const stage = canvas.parentElement;
+  if (!stage) return;
+  stage.classList.remove('pip-tiny', 'pip-normal', 'pip-wide');
+  const hud = $('hud');
+  if (pipWindow && renderer.pipMode) {
+    stage.classList.add(`pip-${renderer.pipMode}`);
+    if (hud && renderer.panelLeft) hud.style.setProperty('--pip-panel-left', `${Math.round(renderer.panelLeft)}px`);
+  } else if (hud) {
+    hud.style.removeProperty('--pip-panel-left');
+  }
 }
 
 function syncPolling() {
@@ -188,7 +205,8 @@ function scheduleLoop() {
 
 function loop() {
   scheduleLoop();
-  if (!renderer.width && !relayout()) return; // 아직 크기가 없음
+  // 크기가 바뀌었으면(창 크기 조절, PiP 창이 막 열림 등) 다시 배치한다. 아직 크기가 없으면 건너뛴다.
+  if ((canvas.clientWidth !== renderer.width || canvas.clientHeight !== renderer.height) && !relayout()) return;
   // 창마다 rAF 시간 기준이 달라서, 상태와 같은 시계(이 창의 performance.now)를 쓴다.
   const nowMs = performance.now();
   const t = nowMs / 1000;
@@ -215,6 +233,13 @@ function updateInfo(t) {
   const duration = store.timeline.duration;
   const text = `${TimeText.mmss(store.displayPosition(t))} / ${duration > 0 ? TimeText.mmss(duration) : '--:--'}`;
   if ($('time').textContent !== text) $('time').textContent = text;
+  const fill = $('progress-fill');
+  if (fill) {
+    const position = store.displayPosition(t);
+    const ratio = duration > 0 && position != null ? Math.min(1, Math.max(0, position / duration)) : 0;
+    const width = `${(ratio * 100).toFixed(2)}%`;
+    if (fill.style.width !== width) fill.style.width = width;
+  }
   const playing = store.phase === 'playing' || store.phase === 'loading';
   // SVG 요소는 .hidden 속성이 없어서 hidden 특성을 직접 바꾼다.
   $('icon-play').toggleAttribute('hidden', playing);

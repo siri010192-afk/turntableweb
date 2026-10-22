@@ -8,11 +8,23 @@ import { TimeText, TonearmRig, VinylGrooves } from './motion.js?v=202610230227';
  * 화면 크기에 맞춘 배치. 글자·버튼(HUD)은 HTML로 위에 겹치므로 그만큼 비워 둔다.
  * - 세로: LP가 폭을 거의 채운다 (왼쪽이 화면 밖으로 살짝 나감). 톤암 받침은 오른쪽 끝에 걸쳐도 된다.
  * - 가로: 왼쪽에 앨범 재킷, LP가 재킷 오른쪽 위로 올라와 겹친다.
- * - 작은 창(compact, PiP): 어떤 비율이든 아래쪽에 제목·가수 두 줄 자리를 비운다. 가로로 길면 재킷 + LP,
- *   아니면 LP만. 재생 버튼은 글자 위에 떠서 나타나므로 자리를 차지하지 않는다.
+ * - 작은 창(compact, PiP)은 크기에 따라 세 구간 (pipMode):
+ *   tiny   — 아주 작을 때: 글자 없이 LP + 톤암만 가운데.
+ *   normal — 아래쪽에 제목·가수 자리. 가로로 길면 재킷 + LP, 아니면 LP만.
+ *   wide   — 가로로 아주 넓을 때: 왼쪽 LP(넉넉하면 재킷도), 톤암 오른쪽부터 정보 패널(panelLeft~).
  * 반환 단위는 CSS 픽셀. maxRight/maxUp은 톤암 피벗 맞춤용 (×R).
  */
 export const COMPACT_TEXT_AREA = 44; // 작은 창 아래쪽 제목·가수 자리 (styles.css의 .app.pip .hud와 맞춘다)
+export const PIP_TINY = { maxHeight: 150, maxWidth: 200 }; // 이보다 작으면 tiny
+export const PIP_WIDE = { minAspect: 2, minWidth: 360 }; // 폭 ≥ 높이×2 이고 폭 ≥ 360이면 wide
+const ARM_REACH = 1.5; // LP 중심에서 톤암(받침 포함) 오른쪽 끝까지 (×R)
+const MIN_PANEL = 170; // wide에서 정보 패널 최소 폭
+
+export function pipModeFor(width, height) {
+  if (height < PIP_TINY.maxHeight || width < PIP_TINY.maxWidth) return 'tiny';
+  if (width >= height * PIP_WIDE.minAspect && width >= PIP_WIDE.minWidth) return 'wide';
+  return 'normal';
+}
 
 export function computeLayout(width, height, insets = { top: 0, bottom: 0, left: 0, right: 0 }, { compact = false } = {}) {
   if (compact) return computeCompactLayout(width, height);
@@ -50,6 +62,48 @@ export function computeLayout(width, height, insets = { top: 0, bottom: 0, left:
 }
 
 function computeCompactLayout(width, height) {
+  const pipMode = pipModeFor(width, height);
+  if (pipMode === 'tiny') {
+    // 글자 없이 LP + 톤암 묶음을 가운데에
+    const pad = 6;
+    const radius = Math.max(1, Math.min((height - pad * 2) * 0.5, width * 0.36));
+    const center = { x: (width - radius * (1 + ARM_REACH)) / 2 + radius, y: height / 2 };
+    return {
+      mode: 'portrait',
+      pipMode,
+      radius,
+      center,
+      sleeve: null,
+      maxRight: (width - center.x) / radius,
+      maxUp: center.y / radius,
+    };
+  }
+  if (pipMode === 'wide') {
+    const pad = 10;
+    const disc = Math.max(1, height - pad * 2);
+    // 재킷까지 넣어도 정보 패널이 충분히 넓으면 재킷 + LP, 아니면 LP만
+    const sleeveSize = disc;
+    let radius = sleeveSize * 0.5;
+    let center = { x: pad + sleeveSize + radius * 0.42, y: pad + disc / 2 };
+    let sleeve = { x: pad, y: pad, size: sleeveSize };
+    if (width - (center.x + radius * ARM_REACH + 6) - 12 < MIN_PANEL) {
+      // LP만 남기고, 그래도 패널이 좁으면 LP를 조금 줄여 패널 최소 폭을 지킨다
+      radius = Math.min(disc * 0.5, (width - pad - 12 - MIN_PANEL - 6) / (1 + ARM_REACH));
+      center = { x: pad + radius, y: pad + disc / 2 };
+      sleeve = null;
+    }
+    const panelLeft = center.x + radius * ARM_REACH + 6;
+    return {
+      mode: sleeve ? 'landscape' : 'portrait',
+      pipMode,
+      radius,
+      center,
+      sleeve,
+      panelLeft,
+      maxRight: (panelLeft - 4 - center.x) / radius, // 톤암이 정보 패널을 침범하지 않게
+      maxUp: center.y / radius,
+    };
+  }
   const top = 6;
   const gap = 4; // LP·재킷 아래 끝과 제목 사이
   const avail = Math.max(1, height - top - COMPACT_TEXT_AREA - gap);
@@ -61,6 +115,7 @@ function computeCompactLayout(width, height) {
     const center = { x: left + sleeveSize + radius * 0.42, y: top + avail / 2 };
     return {
       mode: 'landscape',
+      pipMode,
       radius,
       center,
       sleeve: { x: left, y: center.y - sleeveSize / 2, size: sleeveSize },
@@ -73,6 +128,7 @@ function computeCompactLayout(width, height) {
   const center = { x: width * 0.42, y: top + avail / 2 };
   return {
     mode: 'portrait',
+    pipMode,
     radius,
     center,
     sleeve: null,
@@ -154,6 +210,8 @@ export class TurntableRenderer {
     const compact = this.canvas.ownerDocument !== document;
     const layout = computeLayout(w, h, compact ? { top: 0, bottom: 0, left: 0, right: 0 } : readSafeAreaInsets(), { compact });
     this.mode = layout.mode;
+    this.pipMode = layout.pipMode || null;
+    this.panelLeft = layout.panelLeft || null;
     this.radius = layout.radius;
     this.center = layout.center;
     this.sleeve = layout.sleeve;
