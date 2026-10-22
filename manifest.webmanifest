@@ -1,0 +1,17 @@
+{
+  "name": "TurnTable",
+  "short_name": "TurnTable",
+  "description": "Spotify로 듣는 음악을 돌아가는 레코드와 톤암으로 보여주는 턴테이블 플레이어",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e0d0c",
+  "theme_color": "#0e0d0c",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

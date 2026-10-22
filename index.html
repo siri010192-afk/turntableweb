@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TurnTable</title>
+<meta name="description" content="Spotify로 듣는 음악을 돌아가는 레코드와 톤암으로 보여주는 턴테이블 플레이어">
+<meta name="theme-color" content="#0e0d0c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TurnTable">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="styles.css">
+<script type="module" src="js/app.js"></script>
+</head>
+<body>
+<main class="app" id="app" hidden>
+  <canvas id="stage" aria-label="턴테이블. 라벨을 탭하면 재생과 일시정지, 톤암을 끌면 재생 위치를 옮깁니다."></canvas>
+  <section class="info" aria-live="polite">
+    <h1 class="title" id="title">TurnTable</h1>
+    <p class="sub" id="sub"></p>
+    <p class="time" id="time">--:-- / --:--</p>
+    <p class="status" id="status"></p>
+  </section>
+  <nav class="controls" aria-label="재생 조작">
+    <button type="button" id="prev" aria-label="이전 곡">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 6v12M18 6l-9 6 9 6z"/></svg>
+    </button>
+    <button type="button" id="playpause" class="primary" aria-label="재생">
+      <svg viewBox="0 0 24 24" aria-hidden="true" id="icon-play"><path d="M8 5l11 7-11 7z"/></svg>
+      <svg viewBox="0 0 24 24" aria-hidden="true" id="icon-pause" hidden><path d="M8 5v14M16 5v14"/></svg>
+    </button>
+    <button type="button" id="next" aria-label="다음 곡">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 6v12M6 6l9 6-9 6z"/></svg>
+    </button>
+    <button type="button" id="open-settings" aria-label="설정">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>
+    </button>
+  </nav>
+  <div class="sr-only">
+    <button type="button" id="back10">10초 뒤로</button>
+    <button type="button" id="fwd10">10초 앞으로</button>
+  </div>
+  <pre class="debug" id="debug" hidden></pre>
+</main>
+
+<section class="welcome" id="welcome" hidden>
+  <div class="welcome-card">
+    <h1>TurnTable</h1>
+    <p class="lead">Spotify에서 듣는 음악을 돌아가는 레코드로. 톤암을 들어 원하는 곳에 바늘을 내려 보세요.</p>
+    <button type="button" class="primary wide" id="connect">Spotify 연결</button>
+    <button type="button" class="wide" id="demo">데모로 둘러보기</button>
+    <p class="note" id="connect-note">Spotify Premium 계정과 iPhone의 Spotify 앱이 필요해요. 데모는 소리 없이 가짜로 재생해요.</p>
+  </div>
+</section>
+
+<dialog id="settings" aria-labelledby="settings-title">
+  <form method="dialog" class="sheet">
+    <h2 id="settings-title">설정</h2>
+    <section>
+      <h3>연결</h3>
+      <p id="connection-text"></p>
+      <div class="row-buttons">
+        <button type="button" id="connection-action"></button>
+        <button type="button" id="switch-demo">데모 모드</button>
+      </div>
+    </section>
+    <section>
+      <h3>화면</h3>
+      <label class="switch"><input type="checkbox" id="opt-coverbg"> 배경에도 앨범 커버 쓰기</label>
+      <label class="switch"><input type="checkbox" id="opt-45"> 45 RPM으로 돌리기</label>
+      <label class="switch"><input type="checkbox" id="opt-debug"> 디버그 정보 보기</label>
+    </section>
+    <section>
+      <h3>홈 화면에 추가</h3>
+      <p class="note">Safari 공유 버튼 → <b>홈 화면에 추가</b>를 누르면 앱처럼 전체 화면으로 열려요. 위젯은 웹앱에서 만들 수 없어요.</p>
+    </section>
+    <button value="close" class="wide">닫기</button>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
