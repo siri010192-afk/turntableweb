@@ -24,7 +24,7 @@ const prefs = {
   },
 };
 
-// Spotify 대시보드에 등록한 Redirect URI와 정확히 같아야 한다 (예: https://<아이디>.github.io/turntable-web/).
+// Spotify 대시보드에 등록한 Redirect URI와 정확히 같아야 한다 (예: https://<아이디>.github.io/turntableweb/).
 const redirectUri = new URL('./', location.origin + location.pathname).href;
 const auth = new SpotifyAuth({ clientId: SPOTIFY_CLIENT_ID, redirectUri, storage });
 const canvas = $('stage');
