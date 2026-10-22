@@ -1,12 +1,15 @@
 // 화면 조립: 연결 방식 선택(Spotify / 데모), 렌더 루프, 제스처, 컨트롤, 설정.
 
-import { SPOTIFY_CLIENT_ID } from '../config.js';
-import { MockProvider } from './mock-provider.js';
-import { MotionSpec, TimeText } from './motion.js';
-import { TurntableRenderer } from './renderer.js';
-import { SpotifyAuth, safeStorage } from './spotify-auth.js';
-import { SpotifyProvider } from './spotify-provider.js';
-import { PlayerStore } from './store.js';
+import { SPOTIFY_CLIENT_ID } from '../config.js?v=202610230300';
+import { MockProvider } from './mock-provider.js?v=202610230300';
+import { MotionSpec, TimeText } from './motion.js?v=202610230300';
+import { TurntableRenderer } from './renderer.js?v=202610230300';
+import { SpotifyAuth, safeStorage } from './spotify-auth.js?v=202610230300';
+import { SpotifyProvider } from './spotify-provider.js?v=202610230300';
+import { PlayerStore } from './store.js?v=202610230300';
+
+// 배포 버전. scripts/bump_web_version.py가 version.json·파일 주소의 ?v=와 함께 올린다.
+const APP_VERSION = '202610230300';
 
 /** Document Picture-in-Picture 창 (Chrome·Edge). 열려 있으면 LP와 곡 정보·버튼이 그 창에 있다. */
 let pipWindow = null;
@@ -45,7 +48,35 @@ let fps = 0;
 let lastHaptic = '-';
 let loopToken = 0;
 
+checkForUpdate();
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) checkForUpdate();
+});
 boot();
+
+/**
+ * 브라우저가 예전 파일을 캐시해 두었을 수 있어서(GitHub Pages는 10분 캐시), 서버의 version.json을
+ * 캐시 없이 읽어 다르면 한 번 새로고침한다. 새로고침은 페이지를 서버에 다시 확인하므로 새 파일이 실린다.
+ */
+async function checkForUpdate() {
+  if (APP_VERSION === 'dev') return; // 로컬 개발 중
+  try {
+    const response = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
+    const { version } = await response.json();
+    if (!version || version === APP_VERSION) return;
+    const key = `tt.reloadedFor.${version}`;
+    let alreadyTried = false;
+    try {
+      alreadyTried = sessionStorage.getItem(key) === '1';
+      sessionStorage.setItem(key, '1');
+    } catch {
+      /* 저장소가 막혀 있으면 한 번만 시도하는 보장 없이 진행 */
+    }
+    if (!alreadyTried && !pipWindow) location.reload();
+  } catch {
+    /* 오프라인 등: 다음 기회에 */
+  }
+}
 
 async function boot() {
   try {
