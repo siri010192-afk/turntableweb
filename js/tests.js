@@ -5,6 +5,7 @@ import { Easing, MotionSpec, PlaybackTimeline, SpinRamp, TimeText, TonearmRig, T
 import { SpotifyAuth } from './spotify-auth.js';
 import { SpotifyProvider, mapTrack } from './spotify-provider.js';
 import { PlayerStore } from './store.js';
+import { computeLayout } from './renderer.js';
 
 const results = [];
 const tests = [];
@@ -417,6 +418,29 @@ test('토큰 갱신 응답에 refresh_token이 없으면 기존 것을 유지', 
   await auth.completeLogin(`https://x/?code=1&state=${login.searchParams.get('state')}`);
   now = 3600 * 1000; // 만료
   expect((await auth.accessToken()) === 'A2' && auth.tokens.refreshToken === 'R1');
+});
+
+// ---------- 화면 배치 ----------
+
+test('세로·가로·iPad 배치에서 톤암이 홈에 맞고 화면 안에 있다', () => {
+  const screens = [
+    { w: 390, h: 844, insets: { top: 47, bottom: 34, left: 0, right: 0 } },
+    { w: 844, h: 390, insets: { top: 0, bottom: 21, left: 47, right: 47 } },
+    { w: 820, h: 1180, insets: { top: 24, bottom: 20, left: 0, right: 0 } },
+    { w: 1180, h: 820, insets: { top: 24, bottom: 20, left: 0, right: 0 } },
+    { w: 375, h: 667, insets: { top: 20, bottom: 0, left: 0, right: 0 } },
+  ];
+  for (const s of screens) {
+    const layout = computeLayout(s.w, s.h, s.insets);
+    const rig = new TonearmRig({ maxRight: layout.maxRight, maxUp: layout.maxUp });
+    const label = `${s.w}x${s.h} ${layout.mode}`;
+    expect(rig.fitError < 0.02, `${label} fitError ${rig.fitError.toFixed(3)}`);
+    const pivotX = layout.center.x + rig.pivot.x * layout.radius;
+    const pivotY = layout.center.y + rig.pivot.y * layout.radius;
+    expect(pivotX < s.w + layout.radius * 0.05 && pivotY > 0, `${label} 피벗이 화면 밖 (${pivotX.toFixed(0)}, ${pivotY.toFixed(0)})`);
+    if (layout.mode === 'portrait') expect(layout.radius >= s.w * 0.4, `${label} LP가 작음`);
+    if (layout.sleeve) expect(layout.sleeve.x + layout.sleeve.size < layout.center.x, `${label} 재킷이 라벨을 가림`);
+  }
 });
 
 // ---------- Spotify: 활성 기기가 없을 때 ----------

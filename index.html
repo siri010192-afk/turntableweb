@@ -19,34 +19,34 @@
 <body>
 <main class="app" id="app" hidden>
   <canvas id="stage" aria-label="턴테이블. 라벨을 탭하면 재생과 일시정지, 톤암을 끌면 재생 위치를 옮깁니다."></canvas>
-  <div class="side">
-  <section class="info" aria-live="polite">
-    <h1 class="title" id="title">TurnTable</h1>
-    <p class="sub" id="sub"></p>
-    <p class="time" id="time">--:-- / --:--</p>
-    <p class="status" id="status"></p>
-    <a class="open-spotify" id="open-spotify" href="spotify://" hidden>Spotify 앱 열기</a>
-  </section>
-  <nav class="controls" aria-label="재생 조작">
-    <button type="button" id="prev" aria-label="이전 곡">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 6v12M18 6l-9 6 9 6z"/></svg>
-    </button>
-    <button type="button" id="playpause" class="primary" aria-label="재생">
-      <svg viewBox="0 0 24 24" aria-hidden="true" id="icon-play"><path d="M8 5l11 7-11 7z"/></svg>
-      <svg viewBox="0 0 24 24" aria-hidden="true" id="icon-pause" hidden><path d="M8 5v14M16 5v14"/></svg>
-    </button>
-    <button type="button" id="next" aria-label="다음 곡">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 6v12M6 6l9 6-9 6z"/></svg>
-    </button>
-    <button type="button" id="open-settings" aria-label="설정">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>
-    </button>
-  </nav>
+  <button type="button" class="corner" id="open-settings" aria-label="설정">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>
+  </button>
+  <pre class="debug" id="debug" hidden></pre>
+  <div class="hud">
+    <section class="info" aria-live="polite">
+      <p class="status" id="status"></p>
+      <a class="open-spotify" id="open-spotify" href="spotify://" hidden>Spotify 앱 열기</a>
+      <h1 class="title" id="title">TurnTable</h1>
+      <p class="sub" id="sub"></p>
+      <p class="time" id="time">--:-- / --:--</p>
+    </section>
+    <nav class="controls" aria-label="재생 조작">
+      <button type="button" id="prev" aria-label="이전 곡">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 6v12M18 6l-9 6 9 6z"/></svg>
+      </button>
+      <button type="button" id="playpause" aria-label="재생">
+        <svg viewBox="0 0 24 24" aria-hidden="true" id="icon-play"><path d="M8 5l11 7-11 7z"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true" id="icon-pause" hidden><path d="M8 5v14M16 5v14"/></svg>
+      </button>
+      <button type="button" id="next" aria-label="다음 곡">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 6v12M6 6l9 6-9 6z"/></svg>
+      </button>
+    </nav>
+  </div>
   <div class="sr-only">
     <button type="button" id="back10">10초 뒤로</button>
     <button type="button" id="fwd10">10초 앞으로</button>
-  </div>
-  <pre class="debug" id="debug" hidden></pre>
   </div>
 </main>
 

@@ -1,8 +1,48 @@
-// 턴테이블 캔버스 렌더러. 상태는 PlayerStore.frame(t)에서 읽고 그리기만 한다.
-// 레이어(아래→위): 배경(흐린 커버/그라데이션 + 노이즈) → 플래터 그림자 → 디스크·그루브·먼지(회전)
-// → 라벨(회전) → 정반사 하이라이트(고정) → 스핀들 → 톤암 → 미리보기 시간.
+// 턴테이블 캔버스 렌더러. 캔버스가 화면 전체를 채우고, 상태는 PlayerStore.frame(t)에서 읽어 그리기만 한다.
+// 레이어(아래→위): 배경(흐린 커버/그라데이션 + 노이즈) → 디스크 그림자 → 디스크·그루브·먼지(회전)
+// → 라벨(회전) → 정반사 하이라이트(고정) → 스핀들 → (가로) 앨범 재킷 → 톤암 → 미리보기 시간.
 
-import { TimeText, TurntableLayout, VinylGrooves } from './motion.js';
+import { TimeText, TonearmRig, VinylGrooves } from './motion.js';
+
+/**
+ * 화면 크기에 맞춘 배치. 글자·버튼(HUD)은 HTML로 위에 겹치므로 그만큼 비워 둔다.
+ * - 세로: LP가 폭을 거의 채운다 (왼쪽이 화면 밖으로 살짝 나감). 톤암 받침은 오른쪽 끝에 걸쳐도 된다.
+ * - 가로: 왼쪽에 앨범 재킷, LP는 재킷에서 오른쪽으로 빠져나온 모습.
+ * 반환 단위는 CSS 픽셀. maxRight/maxUp은 톤암 피벗 맞춤용 (×R).
+ */
+export function computeLayout(width, height, insets = { top: 0, bottom: 0, left: 0, right: 0 }) {
+  if (width > height) {
+    // 제목·버튼은 오른쪽 아래(톤암 밑)에 두므로 재킷과 LP는 높이를 거의 다 쓴다.
+    const top = insets.top + 14;
+    const bottom = insets.bottom + 14;
+    const avail = Math.max(1, height - top - bottom);
+    const left = Math.max(16, insets.left) + 8;
+    const sleeveSize = Math.min(avail, width * 0.36);
+    const radius = sleeveSize * 0.5;
+    const center = { x: left + sleeveSize + radius * 0.42, y: top + avail / 2 };
+    return {
+      mode: 'landscape',
+      radius,
+      center,
+      sleeve: { x: left, y: center.y - sleeveSize / 2, size: sleeveSize },
+      maxRight: (width - Math.max(16, insets.right) - center.x) / radius,
+      maxUp: center.y / radius,
+    };
+  }
+  const top = insets.top + 60; // 설정 버튼 줄
+  const bottom = insets.bottom + 120; // 아래쪽 제목·버튼
+  const avail = Math.max(1, height - top - bottom);
+  const radius = Math.min(width * 0.44, avail * 0.48);
+  const center = { x: width * 0.42, y: top + avail / 2 };
+  return {
+    mode: 'portrait',
+    radius,
+    center,
+    sleeve: null,
+    maxRight: (width - center.x) / radius + 0.15, // 톤암 받침이 오른쪽 끝에 살짝 걸쳐도 된다
+    maxUp: (center.y - insets.top) / radius,
+  };
+}
 
 const TAU = Math.PI * 2;
 const DEG = Math.PI / 180;
@@ -10,7 +50,6 @@ const COVER_FADE = 0.35;
 
 export const RenderTokens = {
   backgroundEdge: '#0b0a09',
-  platter: '#121110',
   vinylCenter: '#1c1b1a',
   vinylEdge: '#0b0b0b',
   labelSkeleton: '80,74,66',
@@ -51,6 +90,11 @@ export class TurntableRenderer {
     this.dpr = 1;
     this.radius = 0;
     this.center = { x: 0, y: 0 };
+    this.mode = 'portrait';
+    this.sleeve = null;
+    /** 이 화면 배치에 맞춘 톤암 (각도↔시간 대응은 store.rig.geometry와 같다) */
+    this.rig = store.rig;
+    this.rigKey = '';
     this.grooveCanvas = document.createElement('canvas');
     this.noisePattern = null;
     this.covers = new Map(); // artworkURL → { img, loadedAt, label, background, failed }
@@ -62,16 +106,33 @@ export class TurntableRenderer {
   /** 크기가 바뀌었을 때 호출. 아직 크기가 없으면 false. */
   layout() {
     const w = this.canvas.clientWidth;
-    if (!w) return false;
-    const h = Math.round(w * TurntableLayout.aspect);
-    this.canvas.style.height = `${h}px`;
+    const h = this.canvas.clientHeight;
+    if (!w || !h) return false;
     this.dpr = Math.min(window.devicePixelRatio || 1, 3);
     this.canvas.width = Math.round(w * this.dpr);
     this.canvas.height = Math.round(h * this.dpr);
     this.width = w;
     this.height = h;
-    this.radius = w * TurntableLayout.radius;
-    this.center = { x: w * TurntableLayout.centerX, y: h * TurntableLayout.centerY };
+    const layout = computeLayout(w, h, readSafeAreaInsets());
+    this.mode = layout.mode;
+    this.radius = layout.radius;
+    this.center = layout.center;
+    this.sleeve = layout.sleeve;
+    // 피벗 맞춤은 계산이 조금 들어서 비율이 바뀔 때만 다시 한다
+    const key = `${layout.maxRight.toFixed(2)}/${layout.maxUp.toFixed(2)}`;
+    if (key !== this.rigKey) {
+      const base = this.store.rig;
+      this.rig = new TonearmRig({
+        geometry: base.geometry,
+        armLength: base.armLength,
+        outerGroove: base.outerGroove,
+        innerGroove: base.innerGroove,
+        labelRadius: base.labelRadius,
+        maxRight: layout.maxRight,
+        maxUp: layout.maxUp,
+      });
+      this.rigKey = key;
+    }
     this.buildNoise();
     this.buildGrooves();
     // 크기에 따라 다시 만들어야 하는 캐시
@@ -95,7 +156,7 @@ export class TurntableRenderer {
 
   /** 바늘 쪽 머리 근처만 잡힌다 (최소 44pt 터치 영역). */
   hitsArm(p, armAngle) {
-    const rig = this.store.rig;
+    const rig = this.rig;
     const needle = this.point(rig.needleAt(armAngle));
     const pivot = this.point(rig.pivot);
     const middle = { x: (pivot.x + needle.x) / 2, y: (pivot.y + needle.y) / 2 };
@@ -108,7 +169,7 @@ export class TurntableRenderer {
   }
 
   fingerAngle(p) {
-    return this.store.rig.angleTowards(this.vector(p));
+    return this.rig.angleTowards(this.vector(p));
   }
 
   // ---------- 커버 이미지 ----------
@@ -307,19 +368,19 @@ export class TurntableRenderer {
       ctx.restore();
     }
 
-    // 2. 플래터 그림자
+    // 2. 디스크 접지 그림자 (디스크와 함께 움직인다)
+    const cx = this.center.x + frame.discOffset * R;
+    const cy = this.center.y;
     ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,0.65)';
-    ctx.shadowBlur = 28;
-    ctx.shadowOffsetY = 12;
-    ctx.fillStyle = RenderTokens.platter;
-    circle(ctx, this.center.x, this.center.y, R * 1.03);
+    ctx.shadowColor = 'rgba(0,0,0,0.55)';
+    ctx.shadowBlur = R * 0.16;
+    ctx.shadowOffsetY = R * 0.06;
+    ctx.fillStyle = RenderTokens.vinylEdge;
+    circle(ctx, cx, cy, R * 0.995);
     ctx.fill();
     ctx.restore();
 
     // 3~6. 디스크(그루브·먼지) + 라벨: 함께 회전
-    const cx = this.center.x + frame.discOffset * R;
-    const cy = this.center.y;
     const lr = store.rig.labelRadius * R;
     ctx.save();
     ctx.translate(cx, cy);
@@ -377,6 +438,9 @@ export class TurntableRenderer {
     circle(ctx, cx, cy, R * 0.028);
     ctx.fill();
 
+    // (가로) 앨범 재킷: LP가 재킷에서 빠져나온 모습. 디스크 교체 때 판이 재킷 속으로 들어간다.
+    if (this.sleeve) this.drawSleeve(track, entry, coverReady, t);
+
     // 8. 톤암
     this.drawArm(frame.armAngle, frame.armLift);
 
@@ -384,10 +448,72 @@ export class TurntableRenderer {
     if (store.isArmLifted) this.drawPreview(frame.armAngle);
   }
 
+  /** 앨범 재킷(정사각형 커버). 커버가 없으면 곡 색으로 만든 임시 재킷. */
+  drawSleeve(track, entry, coverReady, t) {
+    const { ctx } = this;
+    const { x, y, size } = this.sleeve;
+    const radius = Math.max(4, size * 0.02);
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = size * 0.08;
+    ctx.shadowOffsetY = size * 0.03;
+    ctx.fillStyle = (track && track.palette && track.palette.base) || '#d9643a';
+    roundedRect(ctx, x, y, size, size, radius);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    roundedRect(ctx, x, y, size, size, radius);
+    ctx.clip();
+    if (!coverReady) this.drawSleevePlaceholder(track, x, y, size);
+    if (coverReady) {
+      const fade = Math.min(1, (t - entry.loadedAt) / COVER_FADE);
+      if (fade < 1) this.drawSleevePlaceholder(track, x, y, size);
+      ctx.globalAlpha = Math.max(0, fade);
+      const img = entry.img;
+      const s = Math.min(img.naturalWidth, img.naturalHeight);
+      ctx.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, x, y, size, size);
+      ctx.globalAlpha = 1;
+    }
+    // 종이 재킷의 가장자리 느낌
+    const edge = ctx.createLinearGradient(x, y, x + size, y + size);
+    edge.addColorStop(0, 'rgba(255,255,255,0.10)');
+    edge.addColorStop(0.5, 'rgba(255,255,255,0)');
+    edge.addColorStop(1, 'rgba(0,0,0,0.12)');
+    ctx.fillStyle = edge;
+    ctx.fillRect(x, y, size, size);
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    roundedRect(ctx, x + 0.5, y + 0.5, size - 1, size - 1, radius);
+    ctx.stroke();
+  }
+
+  drawSleevePlaceholder(track, x, y, size) {
+    const { ctx } = this;
+    const palette = (track && track.palette) || { base: '#D9643A', band: '#F3D9B1', ink: '#2A140B' };
+    ctx.fillStyle = palette.base;
+    ctx.fillRect(x, y, size, size);
+    ctx.strokeStyle = palette.band;
+    ctx.lineWidth = size * 0.06;
+    ctx.beginPath();
+    ctx.arc(x + size * 0.62, y + size * 0.62, size * 0.42, Math.PI * 0.95, Math.PI * 1.75);
+    ctx.stroke();
+    ctx.fillStyle = palette.ink;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = `700 ${size * 0.075}px -apple-system, system-ui, sans-serif`;
+    ctx.fillText('TurnTable', x + size * 0.08, y + size * 0.16, size * 0.84);
+    if (track) {
+      ctx.font = `500 ${size * 0.055}px -apple-system, system-ui, sans-serif`;
+      ctx.fillText(track.title, x + size * 0.08, y + size * 0.9, size * 0.84);
+    }
+  }
+
   drawArm(angle, lift) {
     const { ctx } = this;
     const R = this.radius;
-    const rig = this.store.rig;
+    const rig = this.rig;
     const P = this.point(rig.pivot);
     const d = { x: -Math.sin(angle * DEG), y: Math.cos(angle * DEG) };
     const L = rig.armLength * R;
@@ -456,7 +582,7 @@ export class TurntableRenderer {
   drawPreview(angle) {
     const { ctx } = this;
     const pos = this.store.previewPosition;
-    const n = this.point(this.store.rig.needleAt(angle));
+    const n = this.point(this.rig.needleAt(angle));
     const text = pos == null ? '홈 밖' : TimeText.mmss(pos);
     ctx.font = '600 13px -apple-system, system-ui, sans-serif';
     const tw = ctx.measureText(text).width + 16;
@@ -472,6 +598,19 @@ export class TurntableRenderer {
     ctx.textBaseline = 'middle';
     ctx.fillText(text, bx + tw / 2, by + 12);
   }
+}
+
+/** CSS 변수(--sat 등)에 넣어 둔 safe-area 여백(노치·홈 인디케이터)을 읽는다. */
+function readSafeAreaInsets() {
+  const style = getComputedStyle(document.documentElement);
+  const read = (name) => parseFloat(style.getPropertyValue(name)) || 0;
+  return { top: read('--sat'), bottom: read('--sab'), left: read('--sal'), right: read('--sar') };
+}
+
+function roundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+  else ctx.rect(x, y, w, h);
 }
 
 function distanceToSegment(p, a, b) {

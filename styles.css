@@ -1,4 +1,6 @@
-/* 한 가지 어두운 룩으로 고정 (레코드가 주인공). 색은 토큰으로만 쓴다. */
+/* 한 가지 어두운 룩으로 고정 (레코드가 주인공). 색은 토큰으로만 쓴다.
+   배치: 캔버스가 화면 전체(흐린 커버 배경 + LP + 톤암, 가로는 앨범 재킷까지)를 그리고,
+   글자·버튼은 그 위에 작게 겹친다 (왼쪽 아래 곡 정보, 오른쪽 아래 알약 버튼, 왼쪽 위 설정). */
 :root {
   color-scheme: dark;
   --bg: #0e0d0c;
@@ -6,10 +8,17 @@
   --panel-2: #232019;
   --line: #2f2b26;
   --text: #f2ede6;
-  --muted: #a39b90;
+  --muted: #c9c1b6;
   --accent: #e0703f;
   --accent-ink: #1a0d06;
+  --glass: rgba(20, 18, 16, 0.38);
+  --glass-line: rgba(255, 255, 255, 0.16);
   --font: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  /* 렌더러가 읽는 safe-area 여백 */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
 }
 
 * { box-sizing: border-box; }
@@ -24,71 +33,23 @@ html, body {
   -webkit-text-size-adjust: 100%;
 }
 
-body { overscroll-behavior: none; }
+body { overscroll-behavior: none; overflow: hidden; }
 
 [hidden] { display: none !important; }
 
-.app {
-  min-height: 100%;
-  max-width: 480px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 14px;
-  padding-top: max(8px, env(safe-area-inset-top, 0px));
-  padding-bottom: max(20px, env(safe-area-inset-bottom, 0px));
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-}
+.app { position: fixed; inset: 0; }
 
 canvas {
-  display: block;
+  position: absolute;
+  inset: 0;
   width: 100%;
-  border-radius: 18px;
+  height: 100%;
+  display: block;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
 }
-
-.info { text-align: center; min-width: 0; display: grid; gap: 2px; }
-.title, .sub, .time, .status { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.title { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
-.sub { color: var(--muted); font-size: 15px; }
-.time { color: var(--muted); font-size: 13px; margin-top: 6px; font-variant-numeric: tabular-nums; }
-.status { color: var(--accent); font-size: 13px; min-height: 1.3em; white-space: normal; }
-
-.side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-
-.open-spotify {
-  justify-self: center;
-  margin-top: 6px;
-  padding: 10px 18px;
-  min-height: 44px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 600;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-}
-
-.select-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
-.select-row select {
-  font: inherit;
-  color: var(--text);
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  min-height: 40px;
-  padding: 0 10px;
-}
-
-.controls { display: flex; justify-content: center; align-items: center; gap: 14px; }
 
 button {
   font: inherit;
@@ -102,26 +63,133 @@ button {
   cursor: pointer;
   touch-action: manipulation;
 }
-button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-button:active { transform: scale(0.97); }
+button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:active { transform: scale(0.96); }
 button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
 button.wide { width: 100%; min-height: 50px; }
 
-.controls button { width: 56px; height: 56px; padding: 0; display: grid; place-items: center; }
-.controls button.primary { width: 68px; height: 68px; }
-.controls svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.controls #icon-play path, .controls #prev path:last-child, .controls #next path:last-child { fill: currentColor; }
+/* 유리처럼 비치는 작은 버튼 (배경 커버 위에서 떠 보이게) */
+.corner, .controls button {
+  background: var(--glass);
+  border: 1px solid var(--glass-line);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  backdrop-filter: blur(14px) saturate(1.3);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+#icon-play path, #prev path:last-child, #next path:last-child { fill: currentColor; }
+
+.corner {
+  position: absolute;
+  top: calc(10px + var(--sat));
+  left: calc(max(12px, var(--sal)));
+  width: 44px;
+  height: 44px;
+}
+
+.hud {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 28px max(18px, var(--sar)) calc(16px + var(--sab)) max(18px, var(--sal));
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0));
+  pointer-events: none; /* 빈 곳은 캔버스(톤암 드래그)가 받는다 */
+}
+.hud > * { pointer-events: auto; }
+
+.info { min-width: 0; flex: 1 1 auto; display: grid; gap: 1px; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45); }
+.title, .sub, .time, .status { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.title { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+.sub { color: var(--muted); font-size: 13px; }
+.time { color: var(--muted); font-size: 12px; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.status { color: #ffb08a; font-size: 12px; white-space: normal; margin-bottom: 4px; }
+.status:empty { display: none; }
+
+.open-spotify {
+  justify-self: start;
+  margin-bottom: 8px;
+  padding: 0 16px;
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-line);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.controls { display: flex; align-items: center; gap: 8px; flex: none; }
+.controls button { width: 52px; height: 44px; }
+
+.debug {
+  position: absolute;
+  top: calc(10px + var(--sat));
+  right: max(12px, var(--sar));
+  margin: 0;
+  max-width: 220px;
+  font-size: 11px;
+  color: var(--text);
+  background: var(--glass);
+  border: 1px solid var(--glass-line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+}
+
+/* 가로: 왼쪽은 재킷과 LP가 높이를 다 쓰고, 곡 정보·버튼은 오른쪽 아래(톤암 밑)에 작게 */
+@media (orientation: landscape) {
+  .hud {
+    left: auto;
+    width: min(260px, 30vw);
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+    padding: 0 max(18px, var(--sar)) calc(14px + var(--sab)) 0;
+    background: none;
+  }
+  .info { text-align: right; width: 100%; }
+  .open-spotify { justify-self: end; }
+  .title { font-size: 15px; }
+  .sub { font-size: 12px; }
+  .time { font-size: 11px; }
+  .corner { left: auto; right: max(12px, var(--sar)); }
+  .debug { top: calc(60px + var(--sat)); }
+}
 
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-.debug { margin: 0; font-size: 12px; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; white-space: pre-wrap; }
+.select-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+.select-row select {
+  font: inherit;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  min-height: 40px;
+  padding: 0 10px;
+}
 
 .welcome {
   min-height: 100%;
   display: grid;
   place-items: center;
-  padding: max(24px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(24px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  padding: max(24px, var(--sat)) max(16px, var(--sar)) max(24px, var(--sab)) max(16px, var(--sal));
   background: radial-gradient(circle at 50% 30%, #2b1a12, var(--bg) 70%);
+  overflow: auto;
+  height: 100%;
 }
 .welcome-card { width: 100%; max-width: 380px; display: grid; gap: 12px; text-align: center; }
 .welcome h1 { margin: 0 0 4px; font-size: 34px; letter-spacing: -0.02em; }
@@ -150,7 +218,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  top: calc(64px + var(--sat));
   transform: translateX(-50%);
   max-width: calc(100% - 32px);
   background: var(--panel-2);
@@ -164,24 +232,6 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
   transition: opacity 0.2s;
 }
 .toast.show { opacity: 1; }
-
-/* 가로 모드: 레코드는 왼쪽(화면 높이에 맞춤), 곡 정보와 버튼은 오른쪽 */
-@media (orientation: landscape) {
-  .app {
-    max-width: none;
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
-    gap: clamp(16px, 4vw, 40px);
-    padding-top: max(12px, env(safe-area-inset-top, 0px));
-    padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
-  }
-  canvas {
-    flex: none;
-    width: min(56vw, calc((100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) / 1.05));
-  }
-  .side { flex: 1 1 0; max-width: 420px; justify-content: center; }
-}
 
 @media (prefers-reduced-motion: reduce) {
   .toast { transition: none; }
