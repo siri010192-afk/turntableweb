@@ -187,7 +187,7 @@ function updateInfo(t) {
   if (id !== lastTrackId) {
     lastTrackId = id;
     setTitle(track ? track.title : provider.kind === 'spotify' ? '재생 중인 곡 없음' : 'TurnTable');
-    $('sub').textContent = track ? [track.artist, track.album].filter(Boolean).join(' · ') : '';
+    $('sub').textContent = track ? track.artist : ''; // 앨범 제목은 표시하지 않는다 (사용자 요청)
     renderStatus();
   }
   const duration = store.timeline.duration;
