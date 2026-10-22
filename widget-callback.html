@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TurnTable 위젯 연결</title>
+<style>
+  :root { color-scheme: dark; --bg: #0e0d0c; --text: #f2ede6; --muted: #c9c1b6; --accent: #e0703f; --ink: #1a0d06; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; }
+  main { min-height: 100%; display: grid; place-items: center; padding: 24px max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px)); box-sizing: border-box; }
+  .card { max-width: 360px; display: grid; gap: 14px; text-align: center; }
+  h1 { margin: 0; font-size: 22px; }
+  p { margin: 0; color: var(--muted); line-height: 1.5; }
+  a.button { display: inline-flex; justify-content: center; align-items: center; min-height: 50px; border-radius: 999px; background: var(--accent); color: var(--ink); font-weight: 700; text-decoration: none; }
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <h1 id="title">Scriptable로 돌아가는 중…</h1>
+    <p id="message">Scriptable을 열겠냐고 물으면 <b>열기</b>를 누르세요.</p>
+    <a class="button" id="back" href="#">Scriptable로 돌아가기</a>
+  </div>
+</main>
+<script>
+  // Spotify 로그인 결과(code, state 또는 error)를 Scriptable 위젯 스크립트로 넘긴다.
+  // state는 "<무작위>.<스크립트 이름>" 형식이라 어떤 이름으로 저장한 스크립트든 다시 연다.
+  (function () {
+    var params = new URLSearchParams(location.search);
+    var state = params.get('state') || '';
+    var dot = state.indexOf('.');
+    var scriptName = dot >= 0 ? decodeURIComponent(state.slice(dot + 1)) : 'TurnTable';
+    var forward = new URLSearchParams({ scriptName: scriptName });
+    ['code', 'state', 'error'].forEach(function (key) {
+      if (params.get(key)) forward.set(key, params.get(key));
+    });
+    var target = 'scriptable:///run?' + forward.toString();
+    document.getElementById('back').href = target;
+    if (!params.get('code') && !params.get('error')) {
+      document.getElementById('title').textContent = '연결 정보가 없어요';
+      document.getElementById('message').textContent = 'Scriptable에서 TurnTable 스크립트를 실행해 다시 연결해 주세요.';
+      return;
+    }
+    location.replace(target);
+  })();
+</script>
+</body>
+</html>

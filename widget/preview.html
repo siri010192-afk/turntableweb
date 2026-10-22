@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TurnTable 위젯 미리보기</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 20px 16px 40px; background: #3a3f4a; color: #f2ede6; font: 14px/1.5 -apple-system, system-ui, sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 14px; margin: 24px 0 8px; color: #d8dbe2; }
+  .row { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+  .tile { display: grid; gap: 6px; justify-items: start; }
+  .tile small { color: #c3c7d0; }
+  canvas.widget { border-radius: 22px; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+  .lock { background: rgba(255,255,255,.12); border-radius: 18px; padding: 8px 10px; display: flex; gap: 8px; align-items: center; min-width: 170px; }
+  .lock canvas { border-radius: 50%; }
+  .lock b, .lock span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+  #checks li.fail { color: #ff9b8f; }
+  #checks li.pass { color: #9fe0a0; }
+</style>
+</head>
+<body>
+<h1>TurnTable 위젯 미리보기 (개발용)</h1>
+<p>Scriptable API를 브라우저 캔버스로 흉내 내어 <code>TurnTable.js</code>를 그대로 실행한다. Spotify 응답은 가짜.</p>
+<ul id="checks"></ul>
+<div id="out"></div>
+<script type="module" src="preview-shim.js"></script>
+</body>
+</html>
