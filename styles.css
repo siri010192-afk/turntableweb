@@ -110,19 +110,7 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
    마우스를 창 위에 올리거나 키보드로 버튼에 오면 나타난다 (Spotify 미니 플레이어처럼). */
 .app.pip .hud { padding-top: 16px; padding-bottom: 10px; background: none; }
 .app.pip .status, .app.pip .time { display: none; }
-/* 긴 제목은 두 줄까지 보이고 그 이상은 … */
-.app.pip .title {
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
-  font-size: 14px;
-  line-height: 1.25;
-  word-break: keep-all; /* 한국어도 띄어쓰기 단위로 줄을 바꾼다 */
-  overflow-wrap: anywhere; /* 한 단어가 한 줄보다 길 때만 단어 중간에서 */
-}
+.app.pip .title { font-size: 14px; }
 .app.pip .controls {
   opacity: 0;
   transform: translateY(4px);
@@ -157,6 +145,28 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .info { min-width: 0; flex: 1 1 auto; display: grid; gap: 1px; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45); }
 .title, .sub, .time, .status { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .title { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+
+/* 긴 제목은 전광판처럼 끝까지 흘렀다가 돌아온다 (app.js가 넘칠 때만 .scrolling과 거리를 정한다) */
+.title.scrolling {
+  text-overflow: clip;
+  text-align: left;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 10px, #000 calc(100% - 14px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 10px, #000 calc(100% - 14px), transparent 100%);
+}
+.title.scrolling .marquee-inner {
+  display: inline-block;
+  padding: 0 10px;
+  margin-left: -10px;
+  animation: tt-marquee var(--marquee-time, 8s) ease-in-out infinite alternate;
+}
+@keyframes tt-marquee {
+  0%, 18% { transform: translateX(0); }
+  82%, 100% { transform: translateX(calc(-1 * var(--marquee-distance, 0px))); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .title.scrolling { text-overflow: ellipsis; -webkit-mask-image: none; mask-image: none; }
+  .title.scrolling .marquee-inner { display: inline; animation: none; padding: 0; margin: 0; }
+}
 .sub { color: var(--muted); font-size: 13px; }
 .time { color: var(--muted); font-size: 12px; margin-top: 3px; font-variant-numeric: tabular-nums; }
 .status { color: #ffb08a; font-size: 12px; white-space: normal; margin-bottom: 4px; }

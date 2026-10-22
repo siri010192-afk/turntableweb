@@ -140,6 +140,7 @@ function relayout() {
     } else {
       hud.style.removeProperty('--pip-hud-width');
     }
+    updateMarquee(); // 칸 폭이 바뀌었으니 넘치는지 다시 잰다
   }
   return ok;
 }
@@ -185,7 +186,7 @@ function updateInfo(t) {
   const id = track ? track.id : null;
   if (id !== lastTrackId) {
     lastTrackId = id;
-    $('title').textContent = track ? track.title : provider.kind === 'spotify' ? '재생 중인 곡 없음' : 'TurnTable';
+    setTitle(track ? track.title : provider.kind === 'spotify' ? '재생 중인 곡 없음' : 'TurnTable');
     $('sub').textContent = track ? [track.artist, track.album].filter(Boolean).join(' · ') : '';
     renderStatus();
   }
@@ -197,6 +198,31 @@ function updateInfo(t) {
   $('icon-play').toggleAttribute('hidden', playing);
   $('icon-pause').toggleAttribute('hidden', !playing);
   $('playpause').setAttribute('aria-label', playing ? '일시정지' : '재생');
+}
+
+/** 제목을 넣는다. 안쪽 span이 있어야 전광판처럼 흘릴 수 있다. */
+function setTitle(text) {
+  const title = $('title');
+  const inner = title.ownerDocument.createElement('span');
+  inner.className = 'marquee-inner';
+  inner.textContent = text;
+  title.replaceChildren(inner);
+  updateMarquee();
+}
+
+/** 제목이 칸보다 길면 넘친 만큼 흘리고(초당 약 30px + 앞뒤 멈춤), 짧으면 멈춘다. */
+function updateMarquee() {
+  const title = $('title');
+  const inner = title && title.querySelector('.marquee-inner');
+  if (!inner) return;
+  title.classList.remove('scrolling');
+  const overflow = inner.getBoundingClientRect().width - title.clientWidth;
+  if (overflow > 2) {
+    const distance = Math.ceil(overflow + 14);
+    title.style.setProperty('--marquee-distance', `${distance}px`);
+    title.style.setProperty('--marquee-time', `${(distance / 30 / 0.64).toFixed(1)}s`); // 이동 구간이 전체의 64%
+    title.classList.add('scrolling');
+  }
 }
 
 function renderStatus() {
