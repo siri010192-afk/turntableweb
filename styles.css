@@ -106,9 +106,25 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 }
 .pip-note p { margin: 0; color: var(--muted); font-size: 16px; }
 
-/* PiP 창 안: 설정·도구 없이 LP와 작은 곡 정보·버튼만 */
-.app.pip .hud { padding-top: 16px; padding-bottom: 10px; }
+/* PiP 창 안: 설정·도구 없이 LP와 작은 곡 정보만. 재생 버튼은 숨겨 두었다가
+   마우스를 창 위에 올리거나 키보드로 버튼에 오면 나타난다 (Spotify 미니 플레이어처럼). */
+.app.pip .hud { padding-top: 16px; padding-bottom: 10px; background: none; }
 .app.pip .status { display: none; }
+.app.pip .controls {
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.app.pip:hover .controls,
+.app.pip .controls:focus-within {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app.pip .controls { transition: none; transform: none; }
+}
 
 .hud {
   position: absolute;
