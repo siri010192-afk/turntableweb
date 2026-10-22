@@ -26,6 +26,8 @@ const prefs = {
 
 // Spotify 대시보드에 등록한 Redirect URI와 정확히 같아야 한다 (예: https://<아이디>.github.io/turntableweb/).
 const redirectUri = new URL('./', location.origin + location.pathname).href;
+// 실제 33⅓ RPM은 작은 화면에서 빠르게 느껴져서 기본은 느리게 (설정에서 바꿀 수 있다).
+const DEFAULT_RPM = 8;
 const auth = new SpotifyAuth({ clientId: SPOTIFY_CLIENT_ID, redirectUri, storage });
 const canvas = $('stage');
 
@@ -102,7 +104,7 @@ function start(p) {
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
   store.reduceMotion = reduce.matches;
   reduce.addEventListener('change', (e) => { store.reduceMotion = e.matches; });
-  store.setRpm(prefs.get('rpm45', false) ? MotionSpec.rpm45 : MotionSpec.rpm33);
+  store.setRpm(currentRpm());
 
   renderer = new TurntableRenderer(canvas, store);
   renderer.useCoverBackground = prefs.get('coverBg', true);
@@ -162,13 +164,23 @@ function renderStatus() {
   } else if (provider.status === 'connecting') {
     text = 'Spotify에 연결하는 중…';
   } else if (provider.status === 'noDevice') {
-    text = 'Spotify 앱에서 음악을 재생하면 여기에 나타나요.';
+    text = provider.snapshot.track
+      ? '마지막으로 들은 곡이에요. 라벨을 탭하면 이어서 재생해요.'
+      : 'Spotify 앱에서 음악을 재생하면 여기에 나타나요.';
   } else if (provider.status === 'error' && provider.lastError) {
     text = provider.lastError.userMessage || 'Spotify와 통신하지 못했어요.';
   } else if (!provider.snapshot.track) {
     text = '지금 재생 중인 것은 음악이 아니에요.';
   }
   if ($('status').textContent !== text) $('status').textContent = text;
+  // Spotify 앱이 꺼져 있으면 웹에서 깨울 수 없으니 앱을 여는 버튼을 보인다.
+  $('open-spotify').hidden = !(provider.kind === 'spotify' && provider.status === 'noDevice');
+}
+
+function currentRpm() {
+  const saved = prefs.get('rpm', null);
+  if (saved != null) return Number(saved);
+  return prefs.get('rpm45', false) ? MotionSpec.rpm45 : DEFAULT_RPM; // 예전 설정(45 RPM 체크) 이어받기
 }
 
 function renderDebug() {
@@ -252,7 +264,10 @@ function syncSettings() {
   $('connection-action').textContent = spotify ? 'Spotify 연결 끊기' : 'Spotify 연결';
   $('switch-demo').hidden = !spotify;
   $('opt-coverbg').checked = renderer ? renderer.useCoverBackground : prefs.get('coverBg', true);
-  $('opt-45').checked = prefs.get('rpm45', false);
+  const rpm = currentRpm();
+  const options = [...$('opt-rpm').options];
+  const closest = options.reduce((best, o) => (Math.abs(Number(o.value) - rpm) < Math.abs(Number(best.value) - rpm) ? o : best), options[0]);
+  $('opt-rpm').value = closest.value;
   $('opt-debug').checked = !$('debug').hidden;
 }
 
@@ -279,9 +294,10 @@ $('opt-coverbg').addEventListener('change', (e) => {
   if (renderer) renderer.useCoverBackground = e.target.checked;
 });
 
-$('opt-45').addEventListener('change', (e) => {
-  prefs.set('rpm45', e.target.checked);
-  if (store) store.setRpm(e.target.checked ? MotionSpec.rpm45 : MotionSpec.rpm33);
+$('opt-rpm').addEventListener('change', (e) => {
+  const rpm = Number(e.target.value);
+  prefs.set('rpm', rpm);
+  if (store) store.setRpm(rpm);
 });
 
 $('opt-debug').addEventListener('change', (e) => {

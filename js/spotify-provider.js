@@ -116,17 +116,27 @@ export class SpotifyProvider {
     if (counter !== this.commandCounter) return;
     const data = response.body;
     if (response.status === 204 || !data) {
+      // 활성 기기가 없다 (Spotify 앱이 한동안 쉬면 이렇게 된다). 마지막으로 들은 곡을 대신 보여 준다.
       this.setStatus('noDevice');
-      this.setSnapshot(null, PlaybackTimeline.zero);
+      const last = await this.loadLastPlayed().catch(() => null);
+      if (counter !== this.commandCounter) return;
+      const position = this.pendingPosition || 0;
+      this.setSnapshot(
+        last ? last.track : null,
+        last ? new PlaybackTimeline(position, this.now(), false, last.track.duration) : PlaybackTimeline.zero,
+      );
       return;
     }
     this.setStatus('ok');
+    this.pendingPosition = null;
+    this.lastPlayedTried = false;
     const item = data.item;
     if (!item || (item.type && item.type !== 'track')) {
       this.setSnapshot(null, new PlaybackTimeline(0, receivedAt, Boolean(data.is_playing), 0));
       return;
     }
     const track = mapTrack(item);
+    this.lastPlayed = { track, uri: item.uri, contextUri: (data.context && data.context.uri) || null };
     // 응답이 오는 데 걸린 시간의 절반만큼 재생 위치가 앞서 있다고 본다.
     const latency = Math.max(0, (receivedAt - sentAt) / 2);
     const position = (data.progress_ms || 0) / 1000 + (data.is_playing ? latency : 0);
@@ -136,7 +146,67 @@ export class SpotifyProvider {
   // ---------- 조종 ----------
 
   async play() {
+    if (this.status === 'noDevice') {
+      await this.startOnDevice();
+      return;
+    }
     await this.command('PUT', '/me/player/play', null, (tl, t) => new PlaybackTimeline(tl.positionAt(t), t, true, tl.duration));
+  }
+
+  /**
+   * 활성 기기가 없을 때 재생 시작: 쓸 수 있는 기기(iPhone의 Spotify 앱 등)를 골라
+   * 마지막으로 듣던 곡을 (앨범·플레이리스트 순서 그대로) 기억한 위치부터 튼다.
+   */
+  async startOnDevice() {
+    const device = await this.pickDevice();
+    const last = this.lastPlayed;
+    const positionMs = Math.round((this.pendingPosition || 0) * 1000);
+    const bodies = [];
+    if (last && last.contextUri) bodies.push({ context_uri: last.contextUri, offset: { uri: last.uri }, position_ms: positionMs });
+    if (last) bodies.push({ uris: [last.uri], position_ms: positionMs });
+    if (!bodies.length) bodies.push(undefined); // 기억한 곡이 없으면 그 기기의 마지막 상태로 재개
+    this.commandCounter += 1;
+    let lastError = null;
+    for (const body of bodies) {
+      try {
+        await this.request('PUT', '/me/player/play', { query: { device_id: device.id }, body });
+        lastError = null;
+        break;
+      } catch (error) {
+        // 재생 목록(예: 좋아요 표시한 곡)을 문맥으로 못 쓰면 곡만으로 다시 시도한다.
+        lastError = error;
+      }
+    }
+    this.commandCounter += 1;
+    if (lastError) throw lastError;
+    this.setStatus('ok');
+    const t = this.now();
+    const tl = this.snapshot.timeline;
+    this.setSnapshot(this.snapshot.track, new PlaybackTimeline(positionMs / 1000, t, true, tl.duration));
+    this.pendingPosition = null;
+    this.schedulePoll(1.0);
+  }
+
+  async pickDevice() {
+    const response = await this.request('GET', '/me/player/devices');
+    const devices = ((response.body && response.body.devices) || []).filter((d) => !d.is_restricted);
+    const device = devices.find((d) => d.is_active) || devices.find((d) => d.type === 'Smartphone') || devices[0];
+    if (!device) {
+      throw new ProviderError('noDevice', 'iPhone에서 Spotify 앱을 열어 주세요. 앱이 켜져 있어야 조종할 수 있어요.', 'no devices');
+    }
+    return device;
+  }
+
+  /** 최근 재생한 곡 1개 (활성 기기가 없을 때 판에 올려 둘 곡). 한 번만 읽는다. */
+  async loadLastPlayed() {
+    if (this.lastPlayed) return this.lastPlayed;
+    if (this.lastPlayedTried) return null;
+    this.lastPlayedTried = true;
+    const response = await this.request('GET', '/me/player/recently-played', { query: { limit: '1' } });
+    const entry = response.body && response.body.items && response.body.items[0];
+    if (!entry || !entry.track) return null;
+    this.lastPlayed = { track: mapTrack(entry.track), uri: entry.track.uri, contextUri: (entry.context && entry.context.uri) || null };
+    return this.lastPlayed;
   }
 
   async pause() {
@@ -145,6 +215,13 @@ export class SpotifyProvider {
 
   async seek(seconds) {
     const ms = Math.max(0, Math.round(seconds * 1000));
+    if (this.status === 'noDevice') {
+      // 아직 재생 중인 기기가 없다: 위치만 기억했다가 play()에서 그 위치부터 시작한다.
+      this.pendingPosition = ms / 1000;
+      const tl = this.snapshot.timeline;
+      this.setSnapshot(this.snapshot.track, new PlaybackTimeline(ms / 1000, this.now(), false, tl.duration));
+      return;
+    }
     await this.command('PUT', '/me/player/seek', { position_ms: String(ms) }, (tl, t) => new PlaybackTimeline(ms / 1000, t, tl.isPlaying, tl.duration));
   }
 
@@ -165,7 +242,7 @@ export class SpotifyProvider {
 
   async command(method, path, query, optimistic) {
     this.commandCounter += 1;
-    await this.request(method, path, query);
+    await this.request(method, path, { query });
     this.commandCounter += 1;
     if (optimistic) {
       const t = this.now();
@@ -177,31 +254,36 @@ export class SpotifyProvider {
 
   // ---------- 저수준 ----------
 
-  async request(method, path, query, retried = false) {
+  async request(method, path, { query, body } = {}, retried = false) {
     const token = await this.auth.accessToken();
     const url = new URL(API + path);
     if (query) url.search = new URLSearchParams(query).toString();
+    const init = { method, headers: { Authorization: `Bearer ${token}` } };
+    if (body !== undefined) {
+      init.headers['Content-Type'] = 'application/json';
+      init.body = JSON.stringify(body);
+    }
     let response;
     try {
-      response = await this.fetchFn(url.toString(), { method, headers: { Authorization: `Bearer ${token}` } });
+      response = await this.fetchFn(url.toString(), init);
     } catch (error) {
       throw new ProviderError('network', '인터넷 연결을 확인해 주세요.', String(error));
     }
     if (response.status === 401 && !retried) {
       await this.auth.refresh();
-      return this.request(method, path, query, true);
+      return this.request(method, path, { query, body }, true);
     }
     const text = response.status === 204 ? '' : await response.text().catch(() => '');
-    let body = null;
+    let parsed = null;
     if (text) {
-      try { body = JSON.parse(text); } catch { body = null; }
+      try { parsed = JSON.parse(text); } catch { parsed = null; }
     }
     if (!response.ok) {
-      const error = errorFromResponse(response.status, body);
+      const error = errorFromResponse(response.status, parsed);
       if (response.status === 429) error.detail = Number(response.headers && response.headers.get && response.headers.get('Retry-After')) || 5;
       throw error;
     }
-    return { status: response.status, body };
+    return { status: response.status, body: parsed };
   }
 
   setSnapshot(track, timeline) {

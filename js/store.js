@@ -204,19 +204,21 @@ export class PlayerStore {
     });
   }
 
+  /** 다음/이전 곡. 음악은 바로 넘어가고, 톤암·디스크 교체는 화면에서만 따라간다 (끊김 없음). */
   skip(offset) {
     this.run(async (ctx) => {
       this.phase = 'loading';
-      if (this.timeline.isPlaying) await this.call(ctx, this.provider.pause());
-      this.setSpin(false);
+      this.expectingTrackChange = true;
+      const skipping = Promise.resolve(this.provider.skip(offset));
+      skipping.catch(() => {}); // 아래에서 기다릴 때 처리한다
       await this.liftToRest(ctx);
       await this.slideDisc(ctx, -2.6, MotionSpec.recordSwapDuration / 2, Easing.easeIn);
-      this.expectingTrackChange = true;
-      await this.call(ctx, this.provider.skip(offset));
+      await this.call(ctx, skipping);
       this.adoptProviderTrack();
       await this.swapIn(ctx);
       this.resumePosition = 0;
-      await this.dropFromRest(ctx, 0);
+      if (!this.timeline.isPlaying) await this.call(ctx, this.provider.play());
+      await this.dropOntoPlayback(ctx);
     });
   }
 
@@ -235,8 +237,14 @@ export class PlayerStore {
   apply(snapshot) {
     const previousId = this.track ? this.track.id : null;
     const incoming = snapshot.timeline;
-    this.timeline = incoming;
     const nextId = snapshot.track ? snapshot.track.id : null;
+    if (nextId !== previousId && this.armFollowsPlayback) {
+      // 곡이 바뀌면 톤암이 새 곡 위치로 순간이동하지 않도록 지금 자리에 고정한다 (연출이 옮긴다).
+      const t = this.now();
+      this.armTween = Tween.constant(this.armAngleAt(t));
+      this.armFollowsPlayback = false;
+    }
+    this.timeline = incoming;
     if (nextId !== previousId) {
       this.track = snapshot.track;
       if (previousId == null) {
@@ -291,21 +299,44 @@ export class PlayerStore {
     });
   }
 
-  /** 서비스가 다음 곡으로 넘어갔을 때: 바늘을 들어 휴식 위치로 → 디스크 교체 → 새 곡 처음에 바늘을 내린다. */
+  /**
+   * 서비스가 다음 곡으로 넘어갔을 때: 바늘을 들어 휴식 위치로 → 디스크 교체 → 지금 재생 위치에 바늘을 내린다.
+   * 음악은 멈추지 않는다 (연출만 화면에서 따라간다).
+   */
   runTrackAdvance() {
     this.run(async (ctx) => {
       this.phase = 'trackEnded';
-      if (this.timeline.isPlaying) await this.call(ctx, this.provider.pause());
-      this.setSpin(false);
       await this.setLift(ctx, 1, 0.2);
       await this.moveArm(ctx, this.rig.geometry.restAngle, MotionSpec.armReturnDuration);
-      await this.setLift(ctx, 0, 0.15);
       await this.slideDisc(ctx, -2.6, MotionSpec.recordSwapDuration / 2, Easing.easeIn);
       this.adoptProviderTrack();
       await this.swapIn(ctx);
       this.resumePosition = 0;
-      await this.dropFromRest(ctx, 0);
+      await this.dropOntoPlayback(ctx);
     });
+  }
+
+  /** 음악이 이미 나오고 있을 때: 바늘을 (이동 시간 뒤의) 재생 위치로 옮겨 내려놓고 따라가게 한다. seek 없음. */
+  async dropOntoPlayback(ctx) {
+    if (!(this.timeline.duration > 0)) {
+      await this.setLift(ctx, 0, 0.15);
+      this.phase = this.timeline.isPlaying ? 'playing' : 'armAtRest';
+      return;
+    }
+    await this.setLift(ctx, 1, 0.15);
+    const t = this.now();
+    const target = this.timeline.positionAt(t + MotionSpec.armTravelDuration + MotionSpec.armDropDuration);
+    await this.moveArm(ctx, this.rig.geometry.angleAtPosition(target, this.timeline.duration), MotionSpec.armTravelDuration);
+    await this.setLift(ctx, 0, MotionSpec.armDropDuration, Easing.easeIn);
+    this.haptic('medium');
+    if (this.timeline.isPlaying) {
+      this.startPlayingVisuals();
+    } else {
+      this.armFollowsPlayback = true;
+      this.setSpin(false);
+      this.armLift = this.armLift.retargeted(MotionSpec.pausedLift, 0.25, Easing.easeInOut, this.now());
+      this.phase = 'paused';
+    }
   }
 
   runQueueFinished() {
@@ -478,6 +509,7 @@ export class PlayerStore {
 
   /** 시퀀스가 실패로 끝났을 때 화면이 어정쩡한 상태(loading 등)에 남지 않게 한다. */
   recoverAfterFailure() {
+    this.expectingTrackChange = false;
     if (this.phase === 'loading' || this.phase === 'trackEnded') {
       const t = this.now();
       this.displayedTrack = this.track;

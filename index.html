@@ -19,11 +19,13 @@
 <body>
 <main class="app" id="app" hidden>
   <canvas id="stage" aria-label="턴테이블. 라벨을 탭하면 재생과 일시정지, 톤암을 끌면 재생 위치를 옮깁니다."></canvas>
+  <div class="side">
   <section class="info" aria-live="polite">
     <h1 class="title" id="title">TurnTable</h1>
     <p class="sub" id="sub"></p>
     <p class="time" id="time">--:-- / --:--</p>
     <p class="status" id="status"></p>
+    <a class="open-spotify" id="open-spotify" href="spotify://" hidden>Spotify 앱 열기</a>
   </section>
   <nav class="controls" aria-label="재생 조작">
     <button type="button" id="prev" aria-label="이전 곡">
@@ -45,6 +47,7 @@
     <button type="button" id="fwd10">10초 앞으로</button>
   </div>
   <pre class="debug" id="debug" hidden></pre>
+  </div>
 </main>
 
 <section class="welcome" id="welcome" hidden>
@@ -71,7 +74,15 @@
     <section>
       <h3>화면</h3>
       <label class="switch"><input type="checkbox" id="opt-coverbg"> 배경에도 앨범 커버 쓰기</label>
-      <label class="switch"><input type="checkbox" id="opt-45"> 45 RPM으로 돌리기</label>
+      <label class="select-row">회전 속도
+        <select id="opt-rpm">
+          <option value="3">아주 느리게</option>
+          <option value="8">느리게</option>
+          <option value="16">조금 느리게</option>
+          <option value="33.333333">실제 속도 (33⅓ RPM)</option>
+          <option value="45">빠르게 (45 RPM)</option>
+        </select>
+      </label>
       <label class="switch"><input type="checkbox" id="opt-debug"> 디버그 정보 보기</label>
     </section>
     <section>

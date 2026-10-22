@@ -192,6 +192,36 @@ test('다음 곡 → 디스크 교체 후 처음부터', async () => {
   expect(s.store.displayedTrack.id === 'mock-2');
   expect(s.store.phase === 'playing');
   expect(s.mock.snapshot.timeline.position === 0 && s.mock.snapshot.timeline.isPlaying);
+  // 음악을 멈추거나 다시 seek하지 않는다 (끊김 없음)
+  expect(!s.mock.pauseCallCount, `pause ${s.mock.pauseCallCount}`);
+  expect(s.mock.seekCallCount === 1, `seek ${s.mock.seekCallCount}`);
+  s.cleanup();
+});
+
+test('곡이 자연히 넘어가도 음악을 멈추지 않는다 (연출만)', async () => {
+  const s = makeStore();
+  await s.startPlaying();
+  s.clock.t += s.mock.snapshot.timeline.duration + 1;
+  s.mock.checkForTrackEnd();
+  await s.settle();
+  expect(s.store.displayedTrack.id === 'mock-2' && s.store.phase === 'playing');
+  expect(!s.mock.pauseCallCount && s.mock.seekCallCount === 1);
+  // 연출 동안 흐른 시간만큼 바늘이 이미 들어가 있다
+  const angle = s.store.frame(s.clock.t).armAngle;
+  expect(angle > 18, `angle ${angle}`);
+  s.cleanup();
+});
+
+test('곡이 바뀌는 순간 톤암이 새 곡 위치로 순간이동하지 않는다', async () => {
+  const s = makeStore();
+  await s.startPlaying();
+  s.clock.t += s.mock.snapshot.timeline.duration - 0.01;
+  const before = s.store.frame(s.clock.t).armAngle;
+  s.clock.t += 0.02;
+  s.mock.checkForTrackEnd(); // 동기적으로 새 곡 스냅샷이 들어온다
+  const after = s.store.frame(s.clock.t).armAngle;
+  expect(Math.abs(after - before) < 0.5, `${before} → ${after}`);
+  await s.settle();
   s.cleanup();
 });
 
@@ -387,6 +417,83 @@ test('토큰 갱신 응답에 refresh_token이 없으면 기존 것을 유지', 
   await auth.completeLogin(`https://x/?code=1&state=${login.searchParams.get('state')}`);
   now = 3600 * 1000; // 만료
   expect((await auth.accessToken()) === 'A2' && auth.tokens.refreshToken === 'R1');
+});
+
+// ---------- Spotify: 활성 기기가 없을 때 ----------
+
+/** 경로·메서드별로 응답을 정하는 가짜 서버. 보낸 요청을 기록한다. */
+function fakeSpotify(routes) {
+  const calls = [];
+  const fetchFn = async (url, init = {}) => {
+    const u = new URL(url);
+    const key = `${init.method || 'GET'} ${u.pathname.replace('/v1', '')}`;
+    calls.push({ key, query: Object.fromEntries(u.searchParams), body: init.body ? JSON.parse(init.body) : undefined });
+    const handler = routes[key];
+    if (!handler) return jsonResponse(404, { error: { status: 404, message: `no route ${key}` } });
+    return typeof handler === 'function' ? handler(calls[calls.length - 1], calls) : handler;
+  };
+  return { fetchFn, calls };
+}
+
+const RECENT = {
+  items: [{ track: { ...ITEM, uri: 'spotify:track:abc' }, context: { uri: 'spotify:album:xyz' } }],
+};
+
+test('기기가 쉬고 있으면(204) 마지막으로 들은 곡을 판에 올린다', async () => {
+  const server = fakeSpotify({ 'GET /me/player': jsonResponse(204, null), 'GET /me/player/recently-played': jsonResponse(200, RECENT) });
+  const p = new SpotifyProvider(fakeAuth(), { fetchFn: server.fetchFn, setTimer: () => 0, clearTimer: () => {} });
+  await p.refresh();
+  expect(p.status === 'noDevice');
+  expect(p.snapshot.track && p.snapshot.track.id === 'abc', '마지막 곡 없음');
+  expect(!p.snapshot.timeline.isPlaying && p.snapshot.timeline.duration === 200);
+  await p.refresh(); // 최근 재생은 한 번만 읽는다
+  expect(server.calls.filter((c) => c.key === 'GET /me/player/recently-played').length === 1);
+});
+
+test('기기가 쉬고 있을 때 바늘을 내리면 그 기기에서 앨범 순서대로 이어서 재생', async () => {
+  const server = fakeSpotify({
+    'GET /me/player': jsonResponse(204, null),
+    'GET /me/player/recently-played': jsonResponse(200, RECENT),
+    'GET /me/player/devices': jsonResponse(200, { devices: [{ id: 'mac', type: 'Computer', is_active: false }, { id: 'iphone', type: 'Smartphone', is_active: false }] }),
+    'PUT /me/player/play': jsonResponse(204, null),
+  });
+  const p = new SpotifyProvider(fakeAuth(), { fetchFn: server.fetchFn, setTimer: () => 0, clearTimer: () => {} });
+  await p.refresh();
+  await p.seek(42.5); // 아직 기기가 없으니 기억만 한다
+  expect(!server.calls.some((c) => c.key === 'PUT /me/player/seek'));
+  await p.play();
+  const put = server.calls.find((c) => c.key === 'PUT /me/player/play');
+  expect(put && put.query.device_id === 'iphone', JSON.stringify(put));
+  expect(put.body.context_uri === 'spotify:album:xyz' && put.body.offset.uri === 'spotify:track:abc' && put.body.position_ms === 42500);
+  expect(p.status === 'ok' && p.snapshot.timeline.isPlaying);
+});
+
+test('문맥으로 재생이 안 되면 곡만으로 다시 시도한다', async () => {
+  const server = fakeSpotify({
+    'GET /me/player': jsonResponse(204, null),
+    'GET /me/player/recently-played': jsonResponse(200, RECENT),
+    'GET /me/player/devices': jsonResponse(200, { devices: [{ id: 'iphone', type: 'Smartphone' }] }),
+    'PUT /me/player/play': (call) => (call.body && call.body.context_uri ? jsonResponse(403, { error: { status: 403, reason: 'UNKNOWN' } }) : jsonResponse(204, null)),
+  });
+  const p = new SpotifyProvider(fakeAuth(), { fetchFn: server.fetchFn, setTimer: () => 0, clearTimer: () => {} });
+  await p.refresh();
+  await p.play();
+  const puts = server.calls.filter((c) => c.key === 'PUT /me/player/play');
+  expect(puts.length === 2 && puts[1].body.uris[0] === 'spotify:track:abc');
+  expect(p.status === 'ok');
+});
+
+test('쓸 수 있는 기기가 없으면 Spotify 앱을 열라고 안내', async () => {
+  const server = fakeSpotify({
+    'GET /me/player': jsonResponse(204, null),
+    'GET /me/player/recently-played': jsonResponse(200, RECENT),
+    'GET /me/player/devices': jsonResponse(200, { devices: [] }),
+  });
+  const p = new SpotifyProvider(fakeAuth(), { fetchFn: server.fetchFn, setTimer: () => 0, clearTimer: () => {} });
+  await p.refresh();
+  let error = null;
+  try { await p.play(); } catch (e) { error = e; }
+  expect(error && error.code === 'noDevice' && error.userMessage.includes('Spotify 앱을 열어'), error && error.userMessage);
 });
 
 // ---------- 실행 ----------

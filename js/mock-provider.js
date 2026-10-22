@@ -50,6 +50,7 @@ export class MockProvider {
   }
 
   async pause() {
+    this.pauseCallCount = (this.pauseCallCount || 0) + 1;
     if (!this.snapshot.timeline.isPlaying) return;
     this.stopEndWatcher();
     this.setTimeline(this.snapshot.timeline.pausedAt(this.now()));
@@ -64,11 +65,13 @@ export class MockProvider {
     this.setTimeline(new PlaybackTimeline(target, this.now(), tl.isPlaying, tl.duration));
   }
 
+  /** Spotify처럼 넘기면 바로 새 곡을 재생한다. */
   async skip(offset) {
     if (!this.tracks.length) return;
     const n = this.tracks.length;
     this.index = (((this.index + offset) % n) + n) % n;
-    this.load(this.index, this.snapshot.timeline.isPlaying);
+    this.load(this.index, true);
+    this.startEndWatcher();
   }
 
   /** 곡 끝을 지났으면 실제 서비스처럼 다음 곡으로. 마지막 곡이면 끝에서 멈춘다. */
