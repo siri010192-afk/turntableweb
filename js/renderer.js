@@ -1,13 +1,13 @@
 // 턴테이블 캔버스 렌더러. 캔버스가 화면 전체를 채우고, 상태는 PlayerStore.frame(t)에서 읽어 그리기만 한다.
 // 레이어(아래→위): 배경(흐린 커버/그라데이션 + 노이즈) → 디스크 그림자 → 디스크·그루브·먼지(회전)
-// → 라벨(회전) → 정반사 하이라이트(고정) → 스핀들 → (가로) 앨범 재킷 → 톤암 → 미리보기 시간.
+// → 라벨(회전) → 정반사 하이라이트(고정) → 스핀들 → 톤암 → 미리보기 시간. 가로에서는 앨범 재킷을 디스크보다 먼저 그려 LP가 위로 겹친다.
 
 import { TimeText, TonearmRig, VinylGrooves } from './motion.js';
 
 /**
  * 화면 크기에 맞춘 배치. 글자·버튼(HUD)은 HTML로 위에 겹치므로 그만큼 비워 둔다.
  * - 세로: LP가 폭을 거의 채운다 (왼쪽이 화면 밖으로 살짝 나감). 톤암 받침은 오른쪽 끝에 걸쳐도 된다.
- * - 가로: 왼쪽에 앨범 재킷, LP는 재킷에서 오른쪽으로 빠져나온 모습.
+ * - 가로: 왼쪽에 앨범 재킷, LP가 재킷 오른쪽 위로 올라와 겹친다.
  * 반환 단위는 CSS 픽셀. maxRight/maxUp은 톤암 피벗 맞춤용 (×R).
  */
 export function computeLayout(width, height, insets = { top: 0, bottom: 0, left: 0, right: 0 }) {
@@ -368,7 +368,10 @@ export class TurntableRenderer {
       ctx.restore();
     }
 
-    // 2. 디스크 접지 그림자 (디스크와 함께 움직인다)
+    // (가로) 앨범 재킷: LP가 재킷 위로 올라와 겹친다. 디스크 교체 때 판이 재킷 위를 지나간다.
+    if (this.sleeve) this.drawSleeve(track, entry, coverReady, t);
+
+    // 2. 디스크 접지 그림자 (디스크와 함께 움직이고, 가로에서는 재킷 위에 드리운다)
     const cx = this.center.x + frame.discOffset * R;
     const cy = this.center.y;
     ctx.save();
@@ -437,9 +440,6 @@ export class TurntableRenderer {
     ctx.fillStyle = sp;
     circle(ctx, cx, cy, R * 0.028);
     ctx.fill();
-
-    // (가로) 앨범 재킷: LP가 재킷에서 빠져나온 모습. 디스크 교체 때 판이 재킷 속으로 들어간다.
-    if (this.sleeve) this.drawSleeve(track, entry, coverReady, t);
 
     // 8. 톤암
     this.drawArm(frame.armAngle, frame.armLift);
