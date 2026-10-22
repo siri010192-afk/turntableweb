@@ -107,29 +107,30 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .pip-note p { margin: 0; color: var(--muted); font-size: 16px; }
 
 /* PiP 창 안: 설정·도구 없이 LP와 곡 정보만.
-   - 제목·가수는 어떤 비율이든 아래쪽 전체 폭에 한 줄씩 (높이 58px, renderer.js COMPACT_TEXT_AREA와 맞춘다).
+   - 제목·가수는 어떤 비율이든 아래쪽 전체 폭에 한 줄씩 (높이 44px, renderer.js COMPACT_TEXT_AREA와 맞춘다).
    - 재생 버튼은 자리를 차지하지 않고 아래 가운데에 떠 있다가, 마우스를 창 위에 올리거나
      키보드로 버튼에 오면 나타난다 (Spotify 미니 플레이어처럼). */
 .app.pip .hud {
   left: 0;
   right: 0;
   width: auto;
-  height: 58px;
+  height: 44px;
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-end;
   gap: 0;
-  padding: 0 14px 10px;
+  padding: 0 12px 6px;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0));
 }
 .app.pip .info { text-align: left; width: 100%; }
 .app.pip .status, .app.pip .time, .app.pip .open-spotify { display: none; }
-.app.pip .title { font-size: 14px; line-height: 1.3; }
-.app.pip .sub { font-size: 12px; }
+.app.pip .title { font-size: 14px; line-height: 1.2; }
+.app.pip .sub { font-size: 12px; line-height: 1.25; }
+.app.pip .info { gap: 0; }
 .app.pip .controls {
   position: absolute;
   left: 50%;
-  bottom: 10px;
+  bottom: 4px;
   gap: 4px;
   padding: 4px;
   border-radius: 999px;

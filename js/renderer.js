@@ -12,7 +12,7 @@ import { TimeText, TonearmRig, VinylGrooves } from './motion.js?v=202610230300';
  *   아니면 LP만. 재생 버튼은 글자 위에 떠서 나타나므로 자리를 차지하지 않는다.
  * 반환 단위는 CSS 픽셀. maxRight/maxUp은 톤암 피벗 맞춤용 (×R).
  */
-export const COMPACT_TEXT_AREA = 58; // 작은 창 아래쪽 제목·가수 자리 (styles.css의 .app.pip .hud와 맞춘다)
+export const COMPACT_TEXT_AREA = 44; // 작은 창 아래쪽 제목·가수 자리 (styles.css의 .app.pip .hud와 맞춘다)
 
 export function computeLayout(width, height, insets = { top: 0, bottom: 0, left: 0, right: 0 }, { compact = false } = {}) {
   if (compact) return computeCompactLayout(width, height);
@@ -50,8 +50,8 @@ export function computeLayout(width, height, insets = { top: 0, bottom: 0, left:
 }
 
 function computeCompactLayout(width, height) {
-  const top = 10;
-  const gap = 8; // LP·재킷 아래 끝과 제목 사이
+  const top = 6;
+  const gap = 4; // LP·재킷 아래 끝과 제목 사이
   const avail = Math.max(1, height - top - COMPACT_TEXT_AREA - gap);
   if (width > height * 1.25) {
     // 가로로 긴 작은 창: 재킷 + 그 위로 올라온 LP를 한 줄로, 글자는 아래
@@ -69,14 +69,14 @@ function computeCompactLayout(width, height) {
     };
   }
   // 세로·정사각형 작은 창: LP만 크게
-  const radius = Math.min(width * 0.44, avail * 0.48);
+  const radius = Math.min(width * 0.46, avail * 0.5);
   const center = { x: width * 0.42, y: top + avail / 2 };
   return {
     mode: 'portrait',
     radius,
     center,
     sleeve: null,
-    maxRight: (width - center.x) / radius + 0.15,
+    maxRight: (width - center.x) / radius + 0.3, // 톤암 받침이 오른쪽 끝에 조금 걸쳐도 된다 (LP를 키우기 위해)
     maxUp: center.y / radius,
   };
 }
