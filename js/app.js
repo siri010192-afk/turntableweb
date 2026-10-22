@@ -119,14 +119,29 @@ function start(p) {
 
   $('welcome').hidden = true;
   $('app').hidden = false;
-  new ResizeObserver(() => renderer.layout()).observe(canvas);
-  renderer.layout();
+  new ResizeObserver(() => relayout()).observe(canvas);
+  relayout();
   bindGestures();
   bindControls();
   syncSettings();
   renderStatus();
   if ('documentPictureInPicture' in window && !isMobileDevice()) $('pip').hidden = false;
   scheduleLoop();
+}
+
+/** 렌더러 배치를 다시 계산하고, 작은 창이 가로로 길면 곡 정보 칸을 LP 오른쪽 빈 공간에 맞춘다. */
+function relayout() {
+  const ok = renderer.layout();
+  const hud = $('hud');
+  if (ok && hud) {
+    if (pipWindow && renderer.mode === 'landscape') {
+      const free = renderer.width - (renderer.center.x + renderer.radius) - 26;
+      hud.style.setProperty('--pip-hud-width', `${Math.max(110, Math.round(free))}px`);
+    } else {
+      hud.style.removeProperty('--pip-hud-width');
+    }
+  }
+  return ok;
 }
 
 function syncPolling() {
@@ -150,7 +165,7 @@ function scheduleLoop() {
 
 function loop() {
   scheduleLoop();
-  if (!renderer.width && !renderer.layout()) return; // 아직 크기가 없음
+  if (!renderer.width && !relayout()) return; // 아직 크기가 없음
   // 창마다 rAF 시간 기준이 달라서, 상태와 같은 시계(이 창의 performance.now)를 쓴다.
   const nowMs = performance.now();
   const t = nowMs / 1000;
@@ -331,9 +346,9 @@ async function openPip() {
   $('pip-note').hidden = false;
   $('pip').hidden = true;
   pip.document.addEventListener('keydown', onKeyDown);
-  pip.addEventListener('resize', () => renderer.layout());
+  pip.addEventListener('resize', () => relayout());
   pip.addEventListener('pagehide', closePip, { once: true });
-  renderer.layout();
+  relayout();
   scheduleLoop();
   syncPolling();
 }
@@ -348,7 +363,7 @@ function closePip() {
   pipWindow = null;
   $('pip-note').hidden = true;
   $('pip').hidden = false;
-  renderer.layout();
+  relayout();
   scheduleLoop();
   syncPolling();
 }

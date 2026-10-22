@@ -109,7 +109,20 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 /* PiP 창 안: 설정·도구 없이 LP와 작은 곡 정보만. 재생 버튼은 숨겨 두었다가
    마우스를 창 위에 올리거나 키보드로 버튼에 오면 나타난다 (Spotify 미니 플레이어처럼). */
 .app.pip .hud { padding-top: 16px; padding-bottom: 10px; background: none; }
-.app.pip .status { display: none; }
+.app.pip .status, .app.pip .time { display: none; }
+/* 긴 제목은 두 줄까지 보이고 그 이상은 … */
+.app.pip .title {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.25;
+  word-break: keep-all; /* 한국어도 띄어쓰기 단위로 줄을 바꾼다 */
+  overflow-wrap: anywhere; /* 한 단어가 한 줄보다 길 때만 단어 중간에서 */
+}
 .app.pip .controls {
   opacity: 0;
   transform: translateY(4px);
@@ -202,6 +215,7 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
   .sub { font-size: 12px; }
   .time { font-size: 11px; }
   .toolbar { left: auto; right: max(12px, var(--sar)); flex-direction: row-reverse; }
+  .app.pip .hud { width: var(--pip-hud-width, min(240px, 42vw)); } /* 폭은 app.js가 LP 오른쪽 빈 공간에 맞춘다 */
   .debug { top: calc(60px + var(--sat)); }
 }
 
