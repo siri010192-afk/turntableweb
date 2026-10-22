@@ -8,9 +8,14 @@ import { TimeText, TonearmRig, VinylGrooves } from './motion.js';
  * 화면 크기에 맞춘 배치. 글자·버튼(HUD)은 HTML로 위에 겹치므로 그만큼 비워 둔다.
  * - 세로: LP가 폭을 거의 채운다 (왼쪽이 화면 밖으로 살짝 나감). 톤암 받침은 오른쪽 끝에 걸쳐도 된다.
  * - 가로: 왼쪽에 앨범 재킷, LP가 재킷 오른쪽 위로 올라와 겹친다.
+ * - 작은 창(compact, PiP): 어떤 비율이든 아래쪽에 제목·가수 두 줄 자리를 비운다. 가로로 길면 재킷 + LP,
+ *   아니면 LP만. 재생 버튼은 글자 위에 떠서 나타나므로 자리를 차지하지 않는다.
  * 반환 단위는 CSS 픽셀. maxRight/maxUp은 톤암 피벗 맞춤용 (×R).
  */
+export const COMPACT_TEXT_AREA = 58; // 작은 창 아래쪽 제목·가수 자리 (styles.css의 .app.pip .hud와 맞춘다)
+
 export function computeLayout(width, height, insets = { top: 0, bottom: 0, left: 0, right: 0 }, { compact = false } = {}) {
+  if (compact) return computeCompactLayout(width, height);
   if (width > height) {
     // 제목·버튼은 오른쪽 아래(톤암 밑)에 두므로 재킷과 LP는 높이를 거의 다 쓴다.
     const top = insets.top + 14;
@@ -29,8 +34,8 @@ export function computeLayout(width, height, insets = { top: 0, bottom: 0, left:
       maxUp: center.y / radius,
     };
   }
-  const top = insets.top + (compact ? 12 : 60); // 설정 버튼 줄 (작은 창에는 없다)
-  const bottom = insets.bottom + (compact ? 92 : 120); // 아래쪽 제목·버튼
+  const top = insets.top + 60; // 설정 버튼 줄
+  const bottom = insets.bottom + 120; // 아래쪽 제목·버튼
   const avail = Math.max(1, height - top - bottom);
   const radius = Math.min(width * 0.44, avail * 0.48);
   const center = { x: width * 0.42, y: top + avail / 2 };
@@ -41,6 +46,38 @@ export function computeLayout(width, height, insets = { top: 0, bottom: 0, left:
     sleeve: null,
     maxRight: (width - center.x) / radius + 0.15, // 톤암 받침이 오른쪽 끝에 살짝 걸쳐도 된다
     maxUp: (center.y - insets.top) / radius,
+  };
+}
+
+function computeCompactLayout(width, height) {
+  const top = 10;
+  const gap = 8; // LP·재킷 아래 끝과 제목 사이
+  const avail = Math.max(1, height - top - COMPACT_TEXT_AREA - gap);
+  if (width > height * 1.25) {
+    // 가로로 긴 작은 창: 재킷 + 그 위로 올라온 LP를 한 줄로, 글자는 아래
+    const left = 12;
+    const sleeveSize = Math.min(avail, width * 0.4);
+    const radius = sleeveSize * 0.5;
+    const center = { x: left + sleeveSize + radius * 0.42, y: top + avail / 2 };
+    return {
+      mode: 'landscape',
+      radius,
+      center,
+      sleeve: { x: left, y: center.y - sleeveSize / 2, size: sleeveSize },
+      maxRight: (width - 8 - center.x) / radius,
+      maxUp: center.y / radius,
+    };
+  }
+  // 세로·정사각형 작은 창: LP만 크게
+  const radius = Math.min(width * 0.44, avail * 0.48);
+  const center = { x: width * 0.42, y: top + avail / 2 };
+  return {
+    mode: 'portrait',
+    radius,
+    center,
+    sleeve: null,
+    maxRight: (width - center.x) / radius + 0.15,
+    maxUp: center.y / radius,
   };
 }
 

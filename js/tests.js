@@ -5,7 +5,7 @@ import { Easing, MotionSpec, PlaybackTimeline, SpinRamp, TimeText, TonearmRig, T
 import { SpotifyAuth } from './spotify-auth.js';
 import { SpotifyProvider, mapTrack } from './spotify-provider.js';
 import { PlayerStore } from './store.js';
-import { computeLayout } from './renderer.js';
+import { COMPACT_TEXT_AREA, computeLayout } from './renderer.js';
 
 const results = [];
 const tests = [];
@@ -463,6 +463,9 @@ test('작은 창(PiP) 배치에서도 톤암이 홈에 맞고 LP가 충분히 �
     expect(rig.fitError < 0.02, `${w}x${h} fitError ${rig.fitError.toFixed(3)}`);
     expect(layout.center.y + rig.pivot.y * layout.radius > 0, `${w}x${h} 피벗이 위로 나감`);
     if (layout.mode === 'portrait') expect(layout.radius >= Math.min(w, h) * 0.3, `${w}x${h} LP가 작음 (${layout.radius})`);
+    // 아래쪽 제목·가수 자리를 LP가 침범하지 않는다
+    expect(layout.center.y + layout.radius <= h - COMPACT_TEXT_AREA, `${w}x${h} LP가 제목 자리를 덮음`);
+    if (w > h * 1.25) expect(layout.sleeve, `${w}x${h} 가로로 긴 창인데 재킷이 없음`);
   }
 });
 

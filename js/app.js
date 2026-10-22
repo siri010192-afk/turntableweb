@@ -129,19 +129,10 @@ function start(p) {
   scheduleLoop();
 }
 
-/** 렌더러 배치를 다시 계산하고, 작은 창이 가로로 길면 곡 정보 칸을 LP 오른쪽 빈 공간에 맞춘다. */
+/** 렌더러 배치를 다시 계산하고, 제목 칸 폭이 바뀌었을 수 있으니 전광판이 필요한지 다시 잰다. */
 function relayout() {
   const ok = renderer.layout();
-  const hud = $('hud');
-  if (ok && hud) {
-    if (pipWindow && renderer.mode === 'landscape') {
-      const free = renderer.width - (renderer.center.x + renderer.radius) - 26;
-      hud.style.setProperty('--pip-hud-width', `${Math.max(110, Math.round(free))}px`);
-    } else {
-      hud.style.removeProperty('--pip-hud-width');
-    }
-    updateMarquee(); // 칸 폭이 바뀌었으니 넘치는지 다시 잰다
-  }
+  if (ok) updateMarquee();
   return ok;
 }
 
@@ -363,7 +354,9 @@ async function openPip() {
   pip.document.title = 'TurnTable';
   const link = pip.document.createElement('link');
   link.rel = 'stylesheet';
-  link.href = new URL('styles.css', location.href).href;
+  // 원래 창이 불러온 것과 같은 스타일 (index.html의 ?v= 버전 표시 포함)
+  const mainSheet = document.querySelector('link[rel="stylesheet"]');
+  link.href = mainSheet ? mainSheet.href : new URL('styles.css', location.href).href;
   pip.document.head.append(link);
   const stage = pip.document.createElement('main');
   stage.className = 'app pip';
