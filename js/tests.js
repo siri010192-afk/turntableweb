@@ -456,6 +456,16 @@ test('세로·가로·iPad 배치에서 톤암이 홈에 맞고 화면 안에 �
   }
 });
 
+test('작은 창(PiP) 배치에서도 톤암이 홈에 맞고 LP가 충분히 크다', () => {
+  for (const [w, h] of [[340, 380], [300, 300], [280, 420], [420, 300]]) {
+    const layout = computeLayout(w, h, undefined, { compact: true });
+    const rig = new TonearmRig({ maxRight: layout.maxRight, maxUp: layout.maxUp });
+    expect(rig.fitError < 0.02, `${w}x${h} fitError ${rig.fitError.toFixed(3)}`);
+    expect(layout.center.y + rig.pivot.y * layout.radius > 0, `${w}x${h} 피벗이 위로 나감`);
+    if (layout.mode === 'portrait') expect(layout.radius >= Math.min(w, h) * 0.3, `${w}x${h} LP가 작음 (${layout.radius})`);
+  }
+});
+
 // ---------- Spotify: 활성 기기가 없을 때 ----------
 
 /** 경로·메서드별로 응답을 정하는 가짜 서버. 보낸 요청을 기록한다. */

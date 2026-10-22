@@ -10,7 +10,7 @@ import { TimeText, TonearmRig, VinylGrooves } from './motion.js';
  * - 가로: 왼쪽에 앨범 재킷, LP가 재킷 오른쪽 위로 올라와 겹친다.
  * 반환 단위는 CSS 픽셀. maxRight/maxUp은 톤암 피벗 맞춤용 (×R).
  */
-export function computeLayout(width, height, insets = { top: 0, bottom: 0, left: 0, right: 0 }) {
+export function computeLayout(width, height, insets = { top: 0, bottom: 0, left: 0, right: 0 }, { compact = false } = {}) {
   if (width > height) {
     // 제목·버튼은 오른쪽 아래(톤암 밑)에 두므로 재킷과 LP는 높이를 거의 다 쓴다.
     const top = insets.top + 14;
@@ -29,8 +29,8 @@ export function computeLayout(width, height, insets = { top: 0, bottom: 0, left:
       maxUp: center.y / radius,
     };
   }
-  const top = insets.top + 60; // 설정 버튼 줄
-  const bottom = insets.bottom + 120; // 아래쪽 제목·버튼
+  const top = insets.top + (compact ? 12 : 60); // 설정 버튼 줄 (작은 창에는 없다)
+  const bottom = insets.bottom + (compact ? 92 : 120); // 아래쪽 제목·버튼
   const avail = Math.max(1, height - top - bottom);
   const radius = Math.min(width * 0.44, avail * 0.48);
   const center = { x: width * 0.42, y: top + avail / 2 };
@@ -113,7 +113,9 @@ export class TurntableRenderer {
     this.canvas.height = Math.round(h * this.dpr);
     this.width = w;
     this.height = h;
-    const layout = computeLayout(w, h, readSafeAreaInsets());
+    // PiP 창(다른 문서)으로 옮겨진 경우: 설정 버튼이 없으니 위아래 여백을 줄여 LP를 키운다
+    const compact = this.canvas.ownerDocument !== document;
+    const layout = computeLayout(w, h, compact ? { top: 0, bottom: 0, left: 0, right: 0 } : readSafeAreaInsets(), { compact });
     this.mode = layout.mode;
     this.radius = layout.radius;
     this.center = layout.center;

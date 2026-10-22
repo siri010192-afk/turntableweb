@@ -82,13 +82,33 @@ button.wide { width: 100%; min-height: 50px; }
 svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 #icon-play path, #prev path:last-child, #next path:last-child { fill: currentColor; }
 
-.corner {
+.toolbar {
   position: absolute;
   top: calc(10px + var(--sat));
   left: calc(max(12px, var(--sal)));
-  width: 44px;
-  height: 44px;
+  display: flex;
+  gap: 8px;
 }
+.corner { width: 44px; height: 44px; }
+.corner svg .fill { fill: currentColor; stroke: none; }
+
+/* PiP 창이 열려 있는 동안 원래 창에 보이는 안내 */
+.pip-note {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  text-align: center;
+  background: radial-gradient(circle at 50% 40%, #2b1a12, var(--bg) 70%);
+  padding: 24px;
+}
+.pip-note p { margin: 0; color: var(--muted); font-size: 16px; }
+
+/* PiP 창 안: 설정·도구 없이 LP와 작은 곡 정보·버튼만 */
+.app.pip .hud { padding-top: 16px; padding-bottom: 10px; }
+.app.pip .status { display: none; }
 
 .hud {
   position: absolute;
@@ -165,7 +185,7 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
   .title { font-size: 15px; }
   .sub { font-size: 12px; }
   .time { font-size: 11px; }
-  .corner { left: auto; right: max(12px, var(--sar)); }
+  .toolbar { left: auto; right: max(12px, var(--sar)); flex-direction: row-reverse; }
   .debug { top: calc(60px + var(--sat)); }
 }
 

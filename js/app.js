@@ -8,7 +8,10 @@ import { SpotifyAuth, safeStorage } from './spotify-auth.js';
 import { SpotifyProvider } from './spotify-provider.js';
 import { PlayerStore } from './store.js';
 
-const $ = (id) => document.getElementById(id);
+/** Document Picture-in-Picture 창 (Chrome·Edge). 열려 있으면 LP와 곡 정보·버튼이 그 창에 있다. */
+let pipWindow = null;
+// 요소가 PiP 창으로 옮겨가 있어도 찾는다.
+const $ = (id) => document.getElementById(id) || (pipWindow ? pipWindow.document.getElementById(id) : null);
 const storage = safeStorage();
 const prefs = {
   get(key, fallback) {
@@ -40,6 +43,7 @@ let frames = 0;
 let fpsStart = performance.now();
 let fps = 0;
 let lastHaptic = '-';
+let loopToken = 0;
 
 boot();
 
@@ -92,11 +96,8 @@ function startSpotify() {
   const spotify = new SpotifyProvider(auth, { preferredDeviceType: isMobileDevice() ? 'Smartphone' : 'Computer' });
   spotify.onStatus(() => renderStatus());
   spotify.start();
-  // 화면이 보이지 않으면 상태 읽기를 멈춘다 (배터리)
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) spotify.stop();
-    else spotify.start();
-  });
+  // 화면이 보이지 않으면 상태 읽기를 멈춘다 (배터리). 단 PiP 창이 떠 있으면 계속 읽는다.
+  document.addEventListener('visibilitychange', syncPolling);
   start(spotify);
 }
 
@@ -124,14 +125,34 @@ function start(p) {
   bindControls();
   syncSettings();
   renderStatus();
-  requestAnimationFrame(loop);
+  if ('documentPictureInPicture' in window && !isMobileDevice()) $('pip').hidden = false;
+  scheduleLoop();
+}
+
+function syncPolling() {
+  if (!provider || provider.kind !== 'spotify') return;
+  if (document.hidden && !pipWindow) provider.stop();
+  else provider.start();
 }
 
 // ---------- 루프 ----------
 
-function loop(nowMs) {
-  requestAnimationFrame(loop);
+/**
+ * 다음 프레임 예약. PiP 창이 열려 있으면 그 창의 프레임으로 돌린다
+ * (브라우저를 최소화하면 원래 창의 프레임은 멈추기 때문). 이전 예약은 무효로 한다.
+ */
+function scheduleLoop() {
+  const token = ++loopToken;
+  (pipWindow || window).requestAnimationFrame(() => {
+    if (token === loopToken) loop();
+  });
+}
+
+function loop() {
+  scheduleLoop();
   if (!renderer.width && !renderer.layout()) return; // 아직 크기가 없음
+  // 창마다 rAF 시간 기준이 달라서, 상태와 같은 시계(이 창의 performance.now)를 쓴다.
+  const nowMs = performance.now();
   const t = nowMs / 1000;
   renderer.draw(t);
   updateInfo(t);
@@ -261,30 +282,81 @@ function bindControls() {
     syncSettings();
     $('settings').showModal();
   });
-  // PC 키보드: 스페이스 재생/일시정지, ←/→ 10초 이동, Shift+←/→ 이전/다음 곡
-  document.addEventListener('keydown', (e) => {
-    if ($('settings').open || e.ctrlKey || e.metaKey || e.altKey) return;
-    const target = e.target;
-    if (target && (target.closest('input, select, textarea') || (target.closest('button') && e.key === ' '))) return;
-    if (e.key === ' ') {
-      store.tapLabel();
-    } else if (e.key === 'ArrowLeft') {
-      if (e.shiftKey) store.skip(-1);
-      else store.adjustPosition(-10);
-    } else if (e.key === 'ArrowRight') {
-      if (e.shiftKey) store.skip(1);
-      else store.adjustPosition(10);
-    } else {
-      return;
-    }
-    e.preventDefault();
-  });
+  document.addEventListener('keydown', onKeyDown);
+  $('pip').addEventListener('click', () => openPip());
+  $('pip-back').addEventListener('click', () => { if (pipWindow) pipWindow.close(); });
+}
+
+/** PC 키보드: 스페이스 재생/일시정지, ←/→ 10초 이동, Shift+←/→ 이전/다음 곡 */
+function onKeyDown(e) {
+  if ($('settings').open || e.ctrlKey || e.metaKey || e.altKey) return;
+  const target = e.target;
+  if (target && target.closest && (target.closest('input, select, textarea') || (target.closest('button') && e.key === ' '))) return;
+  if (e.key === ' ') {
+    store.tapLabel();
+  } else if (e.key === 'ArrowLeft') {
+    if (e.shiftKey) store.skip(-1);
+    else store.adjustPosition(-10);
+  } else if (e.key === 'ArrowRight') {
+    if (e.shiftKey) store.skip(1);
+    else store.adjustPosition(10);
+  } else {
+    return;
+  }
+  e.preventDefault();
+}
+
+// ---------- 작은 창 (Document Picture-in-Picture, Chrome·Edge) ----------
+
+/** LP와 곡 정보·버튼을 항상 위에 떠 있는 작은 창으로 옮긴다. 브라우저를 최소화해도 계속 돈다. */
+async function openPip() {
+  if (pipWindow || !('documentPictureInPicture' in window)) return;
+  let pip;
+  try {
+    pip = await window.documentPictureInPicture.requestWindow({ width: 340, height: 380 });
+  } catch (error) {
+    showToast('작은 창을 열지 못했어요. Chrome이나 Edge 최신 버전에서 다시 시도해 주세요.');
+    return;
+  }
+  pipWindow = pip;
+  pip.document.title = 'TurnTable';
+  const link = pip.document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = new URL('styles.css', location.href).href;
+  pip.document.head.append(link);
+  const stage = pip.document.createElement('main');
+  stage.className = 'app pip';
+  stage.append(canvas, $('hud'));
+  pip.document.body.append(stage);
+  $('pip-note').hidden = false;
+  $('pip').hidden = true;
+  pip.document.addEventListener('keydown', onKeyDown);
+  pip.addEventListener('resize', () => renderer.layout());
+  pip.addEventListener('pagehide', closePip, { once: true });
+  renderer.layout();
+  scheduleLoop();
+  syncPolling();
+}
+
+/** PiP 창이 닫히면(닫기 버튼, 원래 창으로 돌아가기) LP를 원래 자리로 되돌린다. */
+function closePip() {
+  if (!pipWindow) return;
+  const app = $('app');
+  const hud = pipWindow.document.getElementById('hud');
+  app.insertBefore(canvas, app.firstChild);
+  if (hud) app.insertBefore(hud, document.querySelector('.sr-only'));
+  pipWindow = null;
+  $('pip-note').hidden = true;
+  $('pip').hidden = false;
+  renderer.layout();
+  scheduleLoop();
+  syncPolling();
 }
 
 function syncSettings() {
   const spotify = provider && provider.kind === 'spotify';
   $('connection-text').textContent = spotify
-    ? 'Spotify에 연결되어 있어요. iPhone의 Spotify 앱을 원격으로 조종해요.'
+    ? 'Spotify에 연결되어 있어요. 이 기기나 다른 기기의 Spotify 앱을 원격으로 조종해요.'
     : '데모 모드예요. 소리 없이 가짜로 재생해요.';
   $('connection-action').textContent = spotify ? 'Spotify 연결 끊기' : 'Spotify 연결';
   $('switch-demo').hidden = !spotify;
