@@ -81,8 +81,15 @@ function startDemo() {
   start(new MockProvider());
 }
 
+/** 휴대기기(iPhone·iPad·Android)인지. iPadOS는 Mac처럼 보이므로 터치 지원으로 구분한다. */
+function isMobileDevice() {
+  const ua = navigator.userAgent;
+  return /iPhone|iPad|iPod|Android/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+}
+
 function startSpotify() {
-  const spotify = new SpotifyProvider(auth);
+  // PC에서 열면 쉬는 Spotify를 깨울 때 PC의 Spotify 앱을, 휴대기기에서는 그 기기를 우선한다.
+  const spotify = new SpotifyProvider(auth, { preferredDeviceType: isMobileDevice() ? 'Smartphone' : 'Computer' });
   spotify.onStatus(() => renderStatus());
   spotify.start();
   // 화면이 보이지 않으면 상태 읽기를 멈춘다 (배터리)
@@ -253,6 +260,24 @@ function bindControls() {
   $('open-settings').addEventListener('click', () => {
     syncSettings();
     $('settings').showModal();
+  });
+  // PC 키보드: 스페이스 재생/일시정지, ←/→ 10초 이동, Shift+←/→ 이전/다음 곡
+  document.addEventListener('keydown', (e) => {
+    if ($('settings').open || e.ctrlKey || e.metaKey || e.altKey) return;
+    const target = e.target;
+    if (target && (target.closest('input, select, textarea') || (target.closest('button') && e.key === ' '))) return;
+    if (e.key === ' ') {
+      store.tapLabel();
+    } else if (e.key === 'ArrowLeft') {
+      if (e.shiftKey) store.skip(-1);
+      else store.adjustPosition(-10);
+    } else if (e.key === 'ArrowRight') {
+      if (e.shiftKey) store.skip(1);
+      else store.adjustPosition(10);
+    } else {
+      return;
+    }
+    e.preventDefault();
   });
 }
 

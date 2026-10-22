@@ -43,6 +43,7 @@ export class SpotifyProvider {
     now = () => performance.now() / 1000,
     sleep = (s) => new Promise((r) => setTimeout(r, s * 1000)),
     pollInterval = 1.5,
+    preferredDeviceType = 'Smartphone', // 쉬는 기기를 깨울 때 우선할 종류 (PC에서는 'Computer')
     setTimer = (fn, ms) => setTimeout(fn, ms),
     clearTimer = (id) => clearTimeout(id),
   } = {}) {
@@ -52,6 +53,7 @@ export class SpotifyProvider {
     this.now = now;
     this.sleep = sleep;
     this.pollInterval = pollInterval;
+    this.preferredDeviceType = preferredDeviceType;
     this.setTimer = setTimer;
     this.clearTimer = clearTimer;
     this.snapshot = { track: null, timeline: PlaybackTimeline.zero };
@@ -190,9 +192,10 @@ export class SpotifyProvider {
   async pickDevice() {
     const response = await this.request('GET', '/me/player/devices');
     const devices = ((response.body && response.body.devices) || []).filter((d) => !d.is_restricted);
-    const device = devices.find((d) => d.is_active) || devices.find((d) => d.type === 'Smartphone') || devices[0];
+    const device = devices.find((d) => d.is_active) || devices.find((d) => d.type === this.preferredDeviceType) || devices[0];
     if (!device) {
-      throw new ProviderError('noDevice', 'iPhone에서 Spotify 앱을 열어 주세요. 앱이 켜져 있어야 조종할 수 있어요.', 'no devices');
+      const where = this.preferredDeviceType === 'Computer' ? 'PC에서' : 'iPhone에서';
+      throw new ProviderError('noDevice', `${where} Spotify 앱을 열어 주세요. 앱이 켜져 있어야 조종할 수 있어요.`, 'no devices');
     }
     return device;
   }

@@ -198,9 +198,10 @@ export class PlayerStore {
     const t = this.now();
     const target = Math.min(Math.max(this.timeline.positionAt(t) + delta, 0), this.timeline.duration);
     const wasPlaying = this.phase === 'playing';
+    // 화면 위치를 먼저 옮겨 둔다: 연달아 누르면(키보드 →→→) 앞선 이동 위에 쌓인다.
+    this.timeline = new PlaybackTimeline(target, t, wasPlaying, this.timeline.duration);
     this.run(async (ctx) => {
       await this.call(ctx, this.provider.seek(target));
-      this.timeline = new PlaybackTimeline(target, this.now(), wasPlaying, this.timeline.duration);
     });
   }
 

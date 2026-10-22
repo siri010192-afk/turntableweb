@@ -264,6 +264,19 @@ test('외부에서 재생이 시작되면 휴식 위치의 톤암이 내려간�
   s.cleanup();
 });
 
+test('10초 이동을 연달아 누르면 쌓인다 (키보드 →→→)', async () => {
+  const s = makeStore();
+  await s.startPlaying();
+  const start = s.mock.snapshot.timeline.positionAt(s.clock.t);
+  s.store.adjustPosition(10);
+  s.store.adjustPosition(10);
+  s.store.adjustPosition(10);
+  await s.settle();
+  const now = s.mock.snapshot.timeline.positionAt(s.clock.t);
+  expect(Math.abs(now - (start + 30)) < 0.5, `${start} → ${now}`);
+  s.cleanup();
+});
+
 test('곡 길이를 모르면 톤암이 잠긴다', async () => {
   const s = makeStore([{ id: 'live', title: 'Live', artist: '', album: '', duration: 0, artworkURL: null }]);
   expect(!s.store.armPressBegan(0));
@@ -490,6 +503,20 @@ test('기기가 쉬고 있을 때 바늘을 내리면 그 기기에서 앨범 �
   expect(put && put.query.device_id === 'iphone', JSON.stringify(put));
   expect(put.body.context_uri === 'spotify:album:xyz' && put.body.offset.uri === 'spotify:track:abc' && put.body.position_ms === 42500);
   expect(p.status === 'ok' && p.snapshot.timeline.isPlaying);
+});
+
+test('PC에서 열면 쉬는 기기 중 컴퓨터를 우선 깨운다', async () => {
+  const server = fakeSpotify({
+    'GET /me/player': jsonResponse(204, null),
+    'GET /me/player/recently-played': jsonResponse(200, RECENT),
+    'GET /me/player/devices': jsonResponse(200, { devices: [{ id: 'iphone', type: 'Smartphone' }, { id: 'pc', type: 'Computer' }] }),
+    'PUT /me/player/play': jsonResponse(204, null),
+  });
+  const p = new SpotifyProvider(fakeAuth(), { fetchFn: server.fetchFn, setTimer: () => 0, clearTimer: () => {}, preferredDeviceType: 'Computer' });
+  await p.refresh();
+  await p.play();
+  const put = server.calls.find((c) => c.key === 'PUT /me/player/play');
+  expect(put && put.query.device_id === 'pc', JSON.stringify(put && put.query));
 });
 
 test('문맥으로 재생이 안 되면 곡만으로 다시 시도한다', async () => {
