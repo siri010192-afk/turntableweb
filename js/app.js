@@ -147,6 +147,7 @@ function start(p) {
 
   renderer = new TurntableRenderer(canvas, store);
   renderer.useCoverBackground = prefs.get('coverBg', true);
+  renderer.sleeveOnTop = prefs.get('sleeveOnTop', false);
 
   $('welcome').hidden = true;
   $('app').hidden = false;
@@ -231,8 +232,14 @@ function updateInfo(t) {
     renderStatus();
   }
   const duration = store.timeline.duration;
-  const text = `${TimeText.mmss(store.displayPosition(t))} / ${duration > 0 ? TimeText.mmss(duration) : '--:--'}`;
+  const elapsedText = TimeText.mmss(store.displayPosition(t));
+  const totalText = duration > 0 ? TimeText.mmss(duration) : '--:--';
+  const text = `${elapsedText} / ${totalText}`;
   if ($('time').textContent !== text) $('time').textContent = text;
+  const elapsed = $('progress-elapsed');
+  if (elapsed && elapsed.textContent !== elapsedText) elapsed.textContent = elapsedText;
+  const total = $('progress-total');
+  if (total && total.textContent !== totalText) total.textContent = totalText;
   const fill = $('progress-fill');
   if (fill) {
     const position = store.displayPosition(t);
@@ -328,6 +335,8 @@ function bindGestures() {
       drag = { id: e.pointerId, start: p, target: 'arm' };
     } else if (renderer.hitsLabel(p)) {
       drag = { id: e.pointerId, start: p, target: 'label' };
+    } else if (renderer.hitsSleeve(p)) {
+      drag = { id: e.pointerId, start: p, target: 'sleeve' };
     } else {
       return;
     }
@@ -351,7 +360,14 @@ function bindGestures() {
       store.armPressEnded();
     } else if (e.type === 'pointerup') {
       const p = pointOf(e);
-      if (Math.hypot(p.x - d.start.x, p.y - d.start.y) < 10) store.tapLabel();
+      if (Math.hypot(p.x - d.start.x, p.y - d.start.y) >= 10) return;
+      if (d.target === 'label') {
+        store.tapLabel();
+      } else {
+        // 앨범 재킷을 누르면 재킷과 LP의 앞뒤를 바꾼다 (마지막 상태를 기억)
+        renderer.sleeveOnTop = !renderer.sleeveOnTop;
+        prefs.set('sleeveOnTop', renderer.sleeveOnTop);
+      }
     }
   };
   canvas.addEventListener('pointerup', end);

@@ -39,7 +39,11 @@
       <h1 class="title" id="title">TurnTable</h1>
       <p class="sub" id="sub"></p>
       <p class="time" id="time">--:-- / --:--</p>
-      <div class="progress" id="progress" aria-hidden="true"><div class="progress-fill" id="progress-fill"></div></div>
+      <div class="progress" id="progress" aria-hidden="true">
+        <span class="progress-time" id="progress-elapsed">00:00</span>
+        <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+        <span class="progress-time" id="progress-total">00:00</span>
+      </div>
     </section>
     <nav class="controls" aria-label="재생 조작">
       <button type="button" id="prev" aria-label="이전 곡">

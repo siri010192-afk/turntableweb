@@ -178,6 +178,8 @@ export class TurntableRenderer {
     this.store = store;
     this.now = now;
     this.useCoverBackground = true;
+    /** 재킷과 LP 중 무엇이 앞인지 (가로·작은 창에서 재킷을 누르면 바뀐다) */
+    this.sleeveOnTop = false;
     this.width = 0;
     this.height = 0;
     this.dpr = 1;
@@ -259,6 +261,14 @@ export class TurntableRenderer {
     const middle = { x: (pivot.x + needle.x) / 2, y: (pivot.y + needle.y) / 2 };
     const headRadius = Math.max(28, this.radius * 0.14);
     return Math.hypot(p.x - needle.x, p.y - needle.y) < headRadius || distanceToSegment(p, middle, needle) < 18;
+  }
+
+  /** 재킷 위를 눌렀는지. LP가 앞이면 LP에 가려진 부분은 재킷이 아니다. */
+  hitsSleeve(p) {
+    const s = this.sleeve;
+    if (!s || p.x < s.x || p.x > s.x + s.size || p.y < s.y || p.y > s.y + s.size) return false;
+    if (this.sleeveOnTop) return true;
+    return Math.hypot(p.x - this.center.x, p.y - this.center.y) > this.radius;
   }
 
   hitsLabel(p) {
@@ -465,8 +475,8 @@ export class TurntableRenderer {
       ctx.restore();
     }
 
-    // (가로) 앨범 재킷: LP가 재킷 위로 올라와 겹친다. 디스크 교체 때 판이 재킷 위를 지나간다.
-    if (this.sleeve) this.drawSleeve(track, entry, coverReady, t);
+    // (가로) 앨범 재킷: 기본은 LP가 재킷 위로 올라와 겹친다. 재킷을 누르면 앞뒤가 바뀐다(sleeveOnTop).
+    if (this.sleeve && !this.sleeveOnTop) this.drawSleeve(track, entry, coverReady, t);
 
     // 2. 디스크 접지 그림자 (디스크와 함께 움직이고, 가로에서는 재킷 위에 드리운다)
     const cx = this.center.x + frame.discOffset * R;
@@ -537,6 +547,9 @@ export class TurntableRenderer {
     ctx.fillStyle = sp;
     circle(ctx, cx, cy, R * 0.028);
     ctx.fill();
+
+    // 재킷이 앞일 때는 LP 위에 덮는다 (톤암은 그 위)
+    if (this.sleeve && this.sleeveOnTop) this.drawSleeve(track, entry, coverReady, t);
 
     // 8. 톤암
     this.drawArm(frame.armAngle, frame.armLift);

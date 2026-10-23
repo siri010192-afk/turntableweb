@@ -154,23 +154,81 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
   .app.pip .controls { transition: none; transform: translate(-50%, 0); }
 }
 
-/* 진행 바: 가로로 넓은 작은 창의 정보 패널에서만 보인다 */
-.progress { display: none; }
-.progress-fill { height: 100%; width: 0; background: var(--text); border-radius: inherit; }
+/* 진행 바 (경과 · 바 · 전체): 작은 창에서만 보인다 */
+.progress { display: none; align-items: center; gap: 8px; }
+.progress-track { flex: 1; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, 0.25); overflow: hidden; }
+.progress-fill { height: 100%; width: 0; background: #fff; border-radius: inherit; }
+.progress-time { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 34px; }
+.progress-time:last-child { text-align: right; }
 
 /* 작은 창 구간 (app.js가 pip-tiny / pip-normal / pip-wide를 붙인다, renderer.js pipModeFor와 같은 기준) */
 
-/* 아주 작을 때: 글자 없이 LP만. 버튼은 마우스를 올리면 LP 위 가운데에 */
-.app.pip.pip-tiny .hud { top: 0; height: auto; padding: 0; background: none; }
+/* 아주 작을 때·일반 크기: 마우스를 올리면 창 전체가 살짝 어두워지고(그림은 비쳐 보임),
+   가운데에 ⏮ ⏯ ⏭, 일반 크기는 제목 바로 위에 경과·진행 바·전체 시간 (Spotify 미니 플레이어처럼).
+   버튼이 상자로 얹히지 않아 LP와 제목을 가리지 않는다. */
+.app.pip.pip-tiny .hud,
+.app.pip.pip-normal .hud {
+  top: 0;
+  height: auto;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.55) 0, rgba(0, 0, 0, 0) 64px);
+}
+.app.pip.pip-tiny .hud { padding: 0; background: none; }
+.app.pip.pip-tiny .hud::before,
+.app.pip.pip-normal .hud::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+.app.pip.pip-tiny:hover .hud::before,
+.app.pip.pip-normal:hover .hud::before,
+.app.pip.pip-tiny .hud:focus-within::before,
+.app.pip.pip-normal .hud:focus-within::before { opacity: 1; }
+.app.pip.pip-normal .info { position: relative; flex: none; } /* 아래에 붙고, 어둡게 덮는 층보다 위에 그려지게 */
 .app.pip.pip-tiny .info { display: none; }
-.app.pip.pip-tiny .controls { bottom: auto; top: 50%; transform: translate(-50%, -50%) scale(0.94); }
+.app.pip.pip-tiny .controls,
+.app.pip.pip-normal .controls {
+  bottom: auto;
+  top: 50%;
+  gap: 10px;
+  padding: 0;
+  background: none;
+  border: 0;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  transform: translate(-50%, -50%) scale(0.94);
+}
 .app.pip.pip-tiny:hover .controls,
-.app.pip.pip-tiny .controls:focus-within { transform: translate(-50%, -50%); }
-
-/* 일반 크기: 제목·가수는 왼쪽 아래 그대로, 버튼은 제목 줄 바로 위 오른쪽에 (제목을 가리지 않게) */
-.app.pip.pip-normal .controls { left: auto; right: 8px; bottom: calc(100% + 2px); transform: translateY(6px); }
+.app.pip.pip-tiny .controls:focus-within,
 .app.pip.pip-normal:hover .controls,
-.app.pip.pip-normal .controls:focus-within { transform: none; }
+.app.pip.pip-normal .controls:focus-within { transform: translate(-50%, -50%); }
+.app.pip.pip-tiny .controls button,
+.app.pip.pip-normal .controls button { filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.5)); }
+.app.pip.pip-tiny .controls #playpause,
+.app.pip.pip-normal .controls #playpause {
+  width: 50px;
+  height: 50px;
+  min-height: 50px;
+  border-radius: 50%;
+  background: #fff;
+  color: #111;
+}
+.app.pip.pip-tiny .controls #playpause svg,
+.app.pip.pip-normal .controls #playpause svg { width: 20px; height: 20px; }
+.app.pip.pip-normal .progress {
+  display: flex;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.app.pip.pip-normal:hover .progress,
+.app.pip.pip-normal .hud:focus-within .progress { opacity: 1; }
 
 /* 가로로 아주 넓을 때: 톤암 오른쪽 빈 공간에 정보 패널 (제목·가수·진행 바·버튼, 버튼은 항상 보임) */
 .app.pip.pip-wide .hud {
@@ -185,14 +243,7 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .app.pip.pip-wide .info { flex: none; align-content: end; }
 .app.pip.pip-wide .title { font-size: 16px; }
 .app.pip.pip-wide .sub { font-size: 13px; margin-top: 2px; }
-.app.pip.pip-wide .progress {
-  display: block;
-  height: 3px;
-  margin-top: 10px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.22);
-  overflow: hidden;
-}
+.app.pip.pip-wide .progress { display: flex; margin-top: 10px; }
 .app.pip.pip-wide .controls {
   position: static;
   align-self: flex-start;
@@ -301,6 +352,14 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
   .time { font-size: 11px; }
   .toolbar { left: auto; right: max(12px, var(--sar)); flex-direction: row-reverse; }
   .debug { top: calc(60px + var(--sat)); }
+}
+
+/* PC처럼 넓은 화면: 제목·가수를 더 크게 (사용자 요청) */
+@media (orientation: landscape) and (min-width: 900px) and (min-height: 500px) {
+  .hud { width: min(380px, 32vw); }
+  .title { font-size: 24px; }
+  .sub { font-size: 16px; margin-top: 2px; }
+  .time { font-size: 13px; margin-top: 6px; }
 }
 
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
