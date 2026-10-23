@@ -1,7 +1,7 @@
 // 실제 서비스 없이 재생을 흉내 내는 프로바이더 (데모 모드, 테스트). Swift `MockMusicProvider`와 같은 동작.
 // 프로바이더 공통 형태: snapshot { track, timeline }, subscribe(fn) → 해제 함수, play/pause/seek/skip (Promise).
 
-import { PlaybackTimeline } from './motion.js?v=202610230241';
+import { PlaybackTimeline } from './motion.js?v=202610231146';
 
 export class ProviderError extends Error {
   constructor(code, userMessage, detail) {
