@@ -6,6 +6,7 @@ import { SpotifyAuth } from './spotify-auth.js?v=202610231146';
 import { SpotifyProvider, mapTrack } from './spotify-provider.js?v=202610231146';
 import { PlayerStore } from './store.js?v=202610231146';
 import { COMPACT_TEXT_AREA, computeLayout } from './renderer.js?v=202610231146';
+import { LyricsService, lineIndexAt, parseLrc } from './lyrics.js?v=202610231146';
 
 const results = [];
 const tests = [];
@@ -454,6 +455,64 @@ test('세로·가로·iPad 배치에서 톤암이 홈에 맞고 화면 안에 �
     if (layout.mode === 'portrait') expect(layout.radius >= s.w * 0.4, `${label} LP가 작음`);
     if (layout.sleeve) expect(layout.sleeve.x + layout.sleeve.size < layout.center.x, `${label} 재킷이 라벨을 가림`);
   }
+});
+
+test('가사 오른쪽·아래: 가사 칸이 LP·톤암과 겹치지 않고 화면 안에', () => {
+  const screens = [
+    { w: 1280, h: 720, insets: { top: 0, bottom: 0, left: 0, right: 0 } },
+    { w: 1920, h: 1000, insets: { top: 0, bottom: 0, left: 0, right: 0 } },
+    { w: 844, h: 390, insets: { top: 0, bottom: 21, left: 47, right: 47 } },
+    { w: 390, h: 844, insets: { top: 47, bottom: 34, left: 0, right: 0 } },
+  ];
+  for (const s of screens) {
+    for (const lyrics of ['right', 'bottom']) {
+      const layout = computeLayout(s.w, s.h, s.insets, { lyrics });
+      const box = layout.lyricsBox;
+      const label = `${s.w}x${s.h} ${lyrics}`;
+      expect(box && box.w > 150 && box.h >= 80, `${label} 가사 칸이 작음 ${JSON.stringify(box)}`);
+      expect(box.x >= 0 && box.y >= 0 && box.x + box.w <= s.w && box.y + box.h <= s.h, `${label} 가사 칸이 화면 밖`);
+      const rig = new TonearmRig({ maxRight: layout.maxRight, maxUp: layout.maxUp });
+      expect(rig.fitError < 0.02, `${label} fitError ${rig.fitError.toFixed(3)}`);
+      const discBottom = layout.center.y + layout.radius;
+      const armRight = layout.center.x + rig.pivot.x * layout.radius;
+      const beside = box.x >= armRight;
+      const below = box.y >= discBottom - 1;
+      expect(beside || below, `${label} 가사 칸이 LP·톤암과 겹침`);
+    }
+  }
+});
+
+test('LRC 가사 읽기와 지금 줄 찾기', () => {
+  const lines = parseLrc('[ar:x]\n[00:12.50]첫 줄\n[00:20.00]\n[00:21.00]\n[01:02.25][01:30.00]후렴');
+  expect(lines.length === 4, `줄 수 ${lines.length}`);
+  expect(lines[0].time === 12.5 && lines[0].text === '첫 줄', '첫 줄');
+  expect(lines[2].time === 62.25 && lines[3].time === 90, '시간표 여러 개');
+  expect(lineIndexAt(lines, 5) === -1, '첫 줄 전');
+  expect(lineIndexAt(lines, 12.5) === 0 && lineIndexAt(lines, 61) === 1 && lineIndexAt(lines, 200) === 3, '줄 찾기');
+});
+
+test('가사 찾기: 정확히 없으면 검색해서 길이가 가까운 시간 맞춘 가사', async () => {
+  const urls = [];
+  const fetchImpl = async (url) => {
+    urls.push(url);
+    if (url.includes('/get?')) return { ok: false, status: 404, json: async () => ({}) };
+    return {
+      ok: true,
+      status: 200,
+      json: async () => [
+        { duration: 300, syncedLyrics: '[00:01.00]다른 곡' },
+        { duration: 201, plainLyrics: '시간 없음' },
+        { duration: 203, syncedLyrics: '[00:01.00]맞는 곡' },
+      ],
+    };
+  };
+  const service = new LyricsService({ fetchImpl });
+  const track = { id: 't1', title: '제목', artist: '가수, 피처링', album: '앨범', duration: 200.4 };
+  const result = await service.load(track);
+  expect(result.status === 'synced' && result.lines[0].text === '맞는 곡', JSON.stringify(result));
+  expect(urls[0].includes('duration=200') && urls[1].endsWith('artist_name=%EA%B0%80%EC%88%98'), urls.join(' | '));
+  await service.load(track);
+  expect(urls.length === 2, '두 번째는 캐시');
 });
 
 test('작은 창(PiP) 일반 크기: 톤암이 맞고 LP가 제목 자리를 덮지 않는다', () => {

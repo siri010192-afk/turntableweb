@@ -1,6 +1,7 @@
 // 화면 조립: 연결 방식 선택(Spotify / 데모), 렌더 루프, 제스처, 컨트롤, 설정.
 
 import { SPOTIFY_CLIENT_ID } from '../config.js?v=202610231146';
+import { LyricsService, lineIndexAt } from './lyrics.js?v=202610231146';
 import { MockProvider } from './mock-provider.js?v=202610231146';
 import { MotionSpec, TimeText } from './motion.js?v=202610231146';
 import { TurntableRenderer } from './renderer.js?v=202610231146';
@@ -47,6 +48,10 @@ let fpsStart = performance.now();
 let fps = 0;
 let lastHaptic = '-';
 let loopToken = 0;
+const lyricsService = new LyricsService();
+let lyricsTrackId = undefined; // 가사를 띄운 곡 (undefined면 다시 불러온다)
+let lyricsLines = []; // 시간 맞춘 가사 줄 (없으면 안내 문구만)
+let lyricsIndex = -2; // 지금 강조한 줄 (-2: 아직 배치 전)
 
 checkForUpdate();
 document.addEventListener('visibilitychange', () => {
@@ -148,6 +153,7 @@ function start(p) {
   renderer = new TurntableRenderer(canvas, store);
   renderer.useCoverBackground = prefs.get('coverBg', true);
   renderer.sleeveOnTop = prefs.get('sleeveOnTop', false);
+  renderer.lyricsPosition = lyricsPositionFromPref(prefs.get('lyrics', 'off'));
 
   $('welcome').hidden = true;
   $('app').hidden = false;
@@ -166,9 +172,99 @@ function relayout() {
   const ok = renderer.layout();
   if (ok) {
     applyPipMode();
+    applyLyricsBox();
     updateMarquee();
   }
   return ok;
+}
+
+// ---------- 가사 ----------
+
+function lyricsPositionFromPref(value) {
+  return value === 'right' || value === 'bottom' ? value : null;
+}
+
+/** 배치가 정한 가사 칸에 맞춘다. 끄거나 작은 창이면 숨긴다. */
+function applyLyricsBox() {
+  const el = document.getElementById('lyrics');
+  if (!el) return;
+  const box = renderer.lyricsBox;
+  el.hidden = !box || Boolean(pipWindow);
+  if (el.hidden) return;
+  Object.assign(el.style, { left: `${box.x}px`, top: `${box.y}px`, width: `${box.w}px`, height: `${box.h}px` });
+  // 오른쪽 칸은 왼쪽 정렬, 아래 칸(턴테이블 밑에 넓게)은 가운데 정렬
+  el.classList.toggle('align-center', renderer.lyricsPosition === 'bottom' || renderer.mode !== 'landscape');
+  lyricsIndex = -2; // 칸 크기가 바뀌었으니 다시 가운데 맞춤
+  if (!lyricsLines.length) centerLyricsOn(document.getElementById('lyrics-lines').firstElementChild);
+}
+
+function updateLyrics(t, track) {
+  if (!renderer.lyricsPosition || pipWindow) return;
+  const id = track ? track.id : null;
+  if (id !== lyricsTrackId) {
+    lyricsTrackId = id;
+    lyricsLines = [];
+    showLyricsMessage(track ? '가사를 찾는 중…' : '');
+    if (track) {
+      lyricsService.load(track).then((result) => {
+        if (lyricsTrackId === id) renderLyrics(result);
+      });
+    }
+  }
+  if (!lyricsLines.length) return;
+  // 화면에 그려지는 순간보다 조금 앞서 바꿔야 노래와 맞게 느껴진다
+  const index = lineIndexAt(lyricsLines, store.displayPosition(t) + 0.25);
+  if (index !== lyricsIndex) setLyricsIndex(index);
+}
+
+function renderLyrics(result) {
+  if (result.status !== 'synced') {
+    const messages = {
+      plain: '이 곡은 시간이 맞춰진 가사가 없어요',
+      instrumental: '연주곡이에요',
+      error: '가사를 불러오지 못했어요',
+    };
+    showLyricsMessage(messages[result.status] || '가사를 찾지 못했어요');
+    return;
+  }
+  const inner = document.getElementById('lyrics-lines');
+  inner.replaceChildren(...result.lines.map((line) => {
+    const p = document.createElement('p');
+    p.textContent = line.text || '♪';
+    return p;
+  }));
+  lyricsLines = result.lines;
+  lyricsIndex = -2;
+}
+
+function showLyricsMessage(text) {
+  lyricsLines = [];
+  const inner = document.getElementById('lyrics-lines');
+  const p = document.createElement('p');
+  p.className = 'message';
+  p.textContent = text;
+  inner.replaceChildren(p);
+  lyricsIndex = -2;
+  centerLyricsOn(p);
+}
+
+/** index 줄을 진하게, 바로 옆 줄은 조금 덜 연하게, 그 줄을 칸 가운데로 */
+function setLyricsIndex(index) {
+  lyricsIndex = index;
+  const lines = document.getElementById('lyrics-lines').children;
+  for (let i = 0; i < lines.length; i += 1) {
+    lines[i].classList.toggle('current', i === index);
+    lines[i].classList.toggle('near', Math.abs(i - index) === 1 && index >= 0);
+  }
+  centerLyricsOn(lines[Math.max(0, index)]);
+}
+
+function centerLyricsOn(line) {
+  const el = document.getElementById('lyrics');
+  const inner = document.getElementById('lyrics-lines');
+  if (!line || el.hidden) return;
+  const offset = el.clientHeight / 2 - (line.offsetTop + line.offsetHeight / 2);
+  inner.style.transform = `translateY(${Math.round(offset)}px)`;
 }
 
 /** 작은 창이면 크기 구간(tiny / normal / wide)을 클래스로 붙이고, wide면 정보 패널 시작 위치를 알려 준다. */
@@ -247,6 +343,7 @@ function updateInfo(t) {
     const width = `${(ratio * 100).toFixed(2)}%`;
     if (fill.style.width !== width) fill.style.width = width;
   }
+  updateLyrics(t, track);
   const playing = store.phase === 'playing' || store.phase === 'loading';
   // SVG 요소는 .hidden 속성이 없어서 hidden 특성을 직접 바꾼다.
   $('icon-play').toggleAttribute('hidden', playing);
@@ -472,6 +569,7 @@ function syncSettings() {
   const closest = options.reduce((best, o) => (Math.abs(Number(o.value) - rpm) < Math.abs(Number(best.value) - rpm) ? o : best), options[0]);
   $('opt-rpm').value = closest.value;
   $('opt-debug').checked = !$('debug').hidden;
+  $('opt-lyrics').value = renderer && renderer.lyricsPosition ? renderer.lyricsPosition : 'off';
 }
 
 $('connect').addEventListener('click', () => connectSpotify());
@@ -501,6 +599,14 @@ $('opt-rpm').addEventListener('change', (e) => {
   const rpm = Number(e.target.value);
   prefs.set('rpm', rpm);
   if (store) store.setRpm(rpm);
+});
+
+$('opt-lyrics').addEventListener('change', (e) => {
+  prefs.set('lyrics', e.target.value);
+  if (!renderer) return;
+  renderer.lyricsPosition = lyricsPositionFromPref(e.target.value);
+  lyricsTrackId = undefined; // 켜면 지금 곡 가사부터 불러온다
+  relayout();
 });
 
 $('opt-debug').addEventListener('change', (e) => {

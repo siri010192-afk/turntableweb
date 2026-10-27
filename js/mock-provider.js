@@ -1,6 +1,7 @@
 // 실제 서비스 없이 재생을 흉내 내는 프로바이더 (데모 모드, 테스트). Swift `MockMusicProvider`와 같은 동작.
 // 프로바이더 공통 형태: snapshot { track, timeline }, subscribe(fn) → 해제 함수, play/pause/seek/skip (Promise).
 
+import { demoLyrics } from './lyrics.js?v=202610231146';
 import { PlaybackTimeline } from './motion.js?v=202610231146';
 
 export class ProviderError extends Error {
@@ -19,7 +20,7 @@ export const SAMPLE_TRACKS = [
     palette: { base: '#3A6FD9', band: '#D6E4F5', ink: '#0D1A33', backgroundTint: '#141C2C' } },
   { id: 'mock-3', title: 'Linen Waltz', artist: 'Placeholder Trio', album: 'Test Lacquer', duration: 245, artworkURL: null,
     palette: { base: '#4F9A66', band: '#E6EFD2', ink: '#0F2416', backgroundTint: '#13221A' } },
-];
+].map((track, i) => ({ ...track, lyrics: demoLyrics(track.duration, i * 5) }));
 
 export class MockProvider {
   constructor({ tracks = SAMPLE_TRACKS, now = () => performance.now() / 1000, seekLatency = 0.15 } = {}) {

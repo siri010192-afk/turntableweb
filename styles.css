@@ -362,6 +362,41 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
   .time { font-size: 13px; margin-top: 6px; }
 }
 
+/* 가사: 위치·크기는 app.js가 배치(lyricsBox)대로 정한다. 지금 줄을 칸 가운데에 두고 위아래 줄은 연하게. */
+.lyrics {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 16%, #000 84%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 16%, #000 84%, transparent 100%);
+}
+.lyrics-lines { transition: transform 0.45s cubic-bezier(0.25, 0.8, 0.3, 1); will-change: transform; }
+.lyrics p {
+  margin: 0;
+  padding: 5px 0;
+  font-size: 17px;
+  line-height: 1.35;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: rgba(255, 255, 255, 0.38);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+  transition: color 0.3s ease;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.lyrics p.current { color: #fff; }
+.lyrics p.near { color: rgba(255, 255, 255, 0.55); }
+.lyrics p.message { color: var(--muted); font-weight: 500; font-size: 14px; }
+.lyrics.align-center p { text-align: center; }
+.app.pip .lyrics { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .lyrics-lines, .lyrics p { transition: none; }
+}
+@media (orientation: landscape) and (min-width: 900px) and (min-height: 500px) {
+  .lyrics p { font-size: 22px; padding: 6px 0; }
+  .lyrics p.message { font-size: 16px; }
+}
+
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 .select-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }

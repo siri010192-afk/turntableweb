@@ -28,6 +28,9 @@
     </button>
   </div>
   <pre class="debug" id="debug" hidden></pre>
+  <section class="lyrics" id="lyrics" aria-label="가사" hidden>
+    <div class="lyrics-lines" id="lyrics-lines"></div>
+  </section>
   <div class="pip-note" id="pip-note" hidden>
     <p>작은 창에서 재생 중이에요.</p>
     <button type="button" id="pip-back">여기로 돌아오기</button>
@@ -97,6 +100,14 @@
           <option value="45">빠르게 (45 RPM)</option>
         </select>
       </label>
+      <label class="select-row">가사 표시
+        <select id="opt-lyrics">
+          <option value="off">끄기</option>
+          <option value="right">턴테이블 오른쪽</option>
+          <option value="bottom">턴테이블 아래</option>
+        </select>
+      </label>
+      <p class="note">가사는 공개 가사 모음 LRCLIB에서 곡 제목·가수로 찾아요. 없는 곡도 있어요.</p>
       <label class="switch"><input type="checkbox" id="opt-debug"> 디버그 정보 보기</label>
     </section>
     <section>
