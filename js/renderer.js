@@ -2,7 +2,7 @@
 // 레이어(아래→위): 배경(흐린 커버/그라데이션 + 노이즈) → 디스크 그림자 → 디스크·그루브·먼지(회전)
 // → 라벨(회전) → 정반사 하이라이트(고정) → 스핀들 → 톤암 → 미리보기 시간. 가로에서는 앨범 재킷을 디스크보다 먼저 그려 LP가 위로 겹친다.
 
-import { TimeText, TonearmRig, VinylGrooves } from './motion.js?v=202610311713';
+import { TimeText, TonearmRig, VinylGrooves } from './motion.js?v=202610311717';
 
 /**
  * 화면 크기에 맞춘 배치. 글자·버튼(HUD)은 HTML로 위에 겹치므로 그만큼 비워 둔다.
