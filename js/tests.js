@@ -489,6 +489,25 @@ test('LRC 가사 읽기와 지금 줄 찾기', () => {
   expect(lineIndexAt(lines, 12.5) === 0 && lineIndexAt(lines, 61) === 1 && lineIndexAt(lines, 200) === 3, '줄 찾기');
 });
 
+test('가사 서버 장애(502·fetch 실패): 오류로 알리고 다시 부르면 새로 받아 온다', async () => {
+  let mode = 'network';
+  const fetchImpl = async () => {
+    if (mode === 'network') throw new TypeError('Failed to fetch');
+    if (mode === '502') return { ok: false, status: 502, json: async () => ({}) };
+    return { ok: true, status: 200, json: async () => ({ syncedLyrics: '[00:01.00]돌아왔다' }) };
+  };
+  const service = new LyricsService({ fetchImpl });
+  const track = { id: 't2', title: '제목', artist: '가수', album: '앨범', duration: 200 };
+  expect((await service.load(track)).status === 'error', 'fetch 실패 → error');
+  await Promise.resolve();
+  mode = '502';
+  expect((await service.load(track)).status === 'error', '502 → error');
+  await Promise.resolve();
+  mode = 'ok';
+  const result = await service.load(track);
+  expect(result.status === 'synced' && result.lines[0].text === '돌아왔다', JSON.stringify(result));
+});
+
 test('가사 찾기: 정확히 없으면 검색해서 길이가 가까운 시간 맞춘 가사', async () => {
   const urls = [];
   const fetchImpl = async (url) => {

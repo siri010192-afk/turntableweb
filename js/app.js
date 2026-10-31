@@ -52,6 +52,8 @@ const lyricsService = new LyricsService();
 let lyricsTrackId = undefined; // 가사를 띄운 곡 (undefined면 다시 불러온다)
 let lyricsLines = []; // 시간 맞춘 가사 줄 (없으면 안내 문구만)
 let lyricsIndex = -2; // 지금 강조한 줄 (-2: 아직 배치 전)
+let lyricsRetryTimer = null; // 가사 서버 오류 뒤 다시 시도
+const LYRICS_RETRY_SECONDS = 30;
 
 checkForUpdate();
 document.addEventListener('visibilitychange', () => {
@@ -206,11 +208,8 @@ function updateLyrics(t, track) {
     lyricsTrackId = id;
     lyricsLines = [];
     showLyricsMessage(track ? '가사를 찾는 중…' : '');
-    if (track) {
-      lyricsService.load(track).then((result) => {
-        if (lyricsTrackId === id) renderLyrics(result);
-      });
-    }
+    clearTimeout(lyricsRetryTimer);
+    if (track) loadLyrics(track);
   }
   if (!lyricsLines.length) return;
   // 화면에 그려지는 순간보다 조금 앞서 바꿔야 노래와 맞게 느껴진다
@@ -218,12 +217,25 @@ function updateLyrics(t, track) {
   if (index !== lyricsIndex) setLyricsIndex(index);
 }
 
+function loadLyrics(track) {
+  lyricsService.load(track).then((result) => {
+    if (lyricsTrackId !== track.id) return;
+    renderLyrics(result);
+    if (result.status === 'error') {
+      // 가사 서버가 잠시 멈춰도 곡을 넘기지 않아도 저절로 나오게
+      lyricsRetryTimer = setTimeout(() => {
+        if (lyricsTrackId === track.id) loadLyrics(track);
+      }, LYRICS_RETRY_SECONDS * 1000);
+    }
+  });
+}
+
 function renderLyrics(result) {
   if (result.status !== 'synced') {
     const messages = {
       plain: '이 곡은 시간이 맞춰진 가사가 없어요',
       instrumental: '연주곡이에요',
-      error: '가사를 불러오지 못했어요',
+      error: '가사 서버가 응답하지 않아요. 잠시 뒤 다시 시도할게요',
     };
     showLyricsMessage(messages[result.status] || '가사를 찾지 못했어요');
     return;

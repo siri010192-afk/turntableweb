@@ -1,5 +1,6 @@
 // 시간이 맞춰진 가사 (설정에서 켤 때만). Spotify Web API에는 가사가 없어서 공개 가사 DB LRCLIB(lrclib.net)에서 받는다.
-// 키가 필요 없고 CORS가 열려 있다. 보내는 정보는 곡 제목·가수·앨범·길이뿐.
+// 키가 필요 없고 CORS가 열려 있다 (단 서버 장애 때 Cloudflare 502에는 CORS 헤더가 없어 브라우저에선 fetch 실패로 보인다).
+// 보내는 정보는 곡 제목·가수·앨범·길이뿐.
 // LRCLIB에 없는 곡(특히 국내 곡 일부)은 "가사를 찾지 못했어요"로 끝난다.
 
 const LRCLIB = 'https://lrclib.net/api';
