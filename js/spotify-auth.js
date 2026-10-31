@@ -1,7 +1,7 @@
 // Spotify 로그인: Authorization Code + PKCE (클라이언트 시크릿 없이 브라우저에서 안전하게).
 // 토큰은 이 기기 브라우저 저장소(localStorage)에만 둔다.
 
-import { ProviderError } from './mock-provider.js?v=202610311736';
+import { ProviderError } from './mock-provider.js?v=202610311927';
 
 const AUTHORIZE_URL = 'https://accounts.spotify.com/authorize';
 const TOKEN_URL = 'https://accounts.spotify.com/api/token';
