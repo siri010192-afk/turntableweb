@@ -508,6 +508,30 @@ test('가사 서버 장애(502·fetch 실패): 오류로 알리고 다시 부르
   expect(result.status === 'synced' && result.lines[0].text === '돌아왔다', JSON.stringify(result));
 });
 
+test('LRCLIB 장애면 예비 가사를 곡 길이에 나눠 주고, 복구되면 시간 맞춘 가사로', async () => {
+  let down = true;
+  const urls = [];
+  const fetchImpl = async (url) => {
+    urls.push(url);
+    if (url.includes('lyrics.ovh')) {
+      return { ok: true, status: 200, json: async () => ({ lyrics: 'Song - Artist\nLyrics by：X\n[Verse]\n첫 줄\n\n둘째 줄\n셋째 줄\n넷째 줄' }) };
+    }
+    if (down) return { ok: false, status: 502, json: async () => ({}) };
+    return { ok: true, status: 200, json: async () => ({ syncedLyrics: '[00:01.00]맞춘 줄' }) };
+  };
+  const service = new LyricsService({ fetchImpl });
+  const track = { id: 't3', title: '제목 (feat. 누구) - Remastered', artist: '가수, 피처링', album: '앨범', duration: 200 };
+  const backup = await service.load(track);
+  expect(backup.status === 'plain' && backup.retry === true, JSON.stringify(backup));
+  expect(backup.lines.map((l) => l.text).join('|') === '첫 줄|둘째 줄|셋째 줄|넷째 줄', JSON.stringify(backup.lines));
+  expect(backup.lines[1].time === 50, `시간 ${backup.lines[1].time}`);
+  expect(urls.some((u) => u.endsWith(`/${encodeURIComponent('가수')}/${encodeURIComponent('제목')}`)), urls.join(' | '));
+  await Promise.resolve();
+  down = false;
+  const synced = await service.load(track);
+  expect(synced.status === 'synced' && !synced.retry, JSON.stringify(synced));
+});
+
 test('가사 찾기: 정확히 없으면 검색해서 길이가 가까운 시간 맞춘 가사', async () => {
   const urls = [];
   const fetchImpl = async (url) => {

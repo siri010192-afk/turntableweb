@@ -1,9 +1,12 @@
 // 시간이 맞춰진 가사 (설정에서 켤 때만). Spotify Web API에는 가사가 없어서 공개 가사 DB LRCLIB(lrclib.net)에서 받는다.
 // 키가 필요 없고 CORS가 열려 있다 (단 서버 장애 때 Cloudflare 502에는 CORS 헤더가 없어 브라우저에선 fetch 실패로 보인다).
+// 시간 맞춘 가사를 못 받으면 lyrics.ovh(키 없음, CORS 허용, 시간 정보 없음)를 예비로 쓴다.
 // 보내는 정보는 곡 제목·가수·앨범·길이뿐.
 // LRCLIB에 없는 곡(특히 국내 곡 일부)은 "가사를 찾지 못했어요"로 끝난다.
 
 const LRCLIB = 'https://lrclib.net/api';
+const LYRICS_OVH = 'https://api.lyrics.ovh/v1';
+const REQUEST_TIMEOUT_MS = 10000;
 
 /**
  * LRC 본문 → [{ time(초), text }] (시간순). 한 줄에 시간표가 여러 개면 각각 한 줄로 펼친다.
@@ -38,10 +41,11 @@ export function lineIndexAt(lines, position) {
 /**
  * 결과: { status, lines }
  * - 'synced'       시간 맞춘 가사 (lines)
- * - 'plain'        가사는 있지만 시간이 없음
+ * - 'plain'        가사는 있지만 시간이 없음 (lines는 곡 길이에 고르게 나눈 어림 시간. 진행에 따라 흘려 보여 주기만 한다)
  * - 'instrumental' 연주곡
  * - 'none'         찾지 못함
  * - 'error'        네트워크 등 (다음에 다시 시도)
+ * retry: true면 LRCLIB가 실패해 예비 가사를 준 것이다. 다음에 시간 맞춘 가사를 다시 찾는다.
  */
 export class LyricsService {
   constructor({ fetchImpl = (...args) => fetch(...args) } = {}) {
@@ -57,20 +61,49 @@ export class LyricsService {
     const promise = this.fetchFor(track).catch(() => ({ status: 'error', lines: [] }));
     this.cache.set(track.id, promise);
     promise.then((result) => {
-      if (result.status === 'error') this.cache.delete(track.id); // 실패는 다음에 다시
+      if (result.status === 'error' || result.retry) this.cache.delete(track.id); // 실패는 다음에 다시
     });
     return promise;
   }
 
   async fetchFor(track) {
+    let best = null;
+    let failed = false;
+    try {
+      best = await this.fetchLrclib(track);
+      if (best.status !== 'none') return best;
+    } catch {
+      failed = true;
+    }
+    const backup = await this.fetchLyricsOvh(track).catch(() => null);
+    if (backup) return { ...backup, retry: failed };
+    if (failed) throw new Error('lyrics unavailable');
+    return best;
+  }
+
+  request(url) {
+    const options = typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) } : {};
+    return this.fetchImpl(url, options);
+  }
+
+  async fetchLyricsOvh(track) {
+    const url = `${LYRICS_OVH}/${encodeURIComponent(firstArtist(track.artist))}/${encodeURIComponent(baseTitle(track.title))}`;
+    const response = await this.request(url);
+    if (!response.ok) return null;
+    const body = await response.json();
+    const result = plainResult(body.lyrics, track.duration);
+    return result.status === 'plain' ? result : null;
+  }
+
+  async fetchLrclib(track) {
     const artist = firstArtist(track.artist);
     const duration = Math.round(track.duration || 0);
     // 1) 정확히 맞는 곡 (LRCLIB가 길이 ±2초까지 맞춰 준다)
     if (track.album && duration > 0) {
       const params = new URLSearchParams({ track_name: track.title, artist_name: artist, album_name: track.album, duration: String(duration) });
-      const response = await this.fetchImpl(`${LRCLIB}/get?${params}`);
+      const response = await this.request(`${LRCLIB}/get?${params}`);
       if (response.ok) {
-        const result = toResult(await response.json());
+        const result = toResult(await response.json(), track.duration);
         if (result.status !== 'none') return result;
       } else if (response.status !== 404) {
         throw new Error(`lrclib ${response.status}`);
@@ -78,15 +111,31 @@ export class LyricsService {
     }
     // 2) 제목·가수로 찾아서 길이가 가장 가까운 것 (시간 맞춘 가사 우선)
     const params = new URLSearchParams({ track_name: track.title, artist_name: artist });
-    const response = await this.fetchImpl(`${LRCLIB}/search?${params}`);
+    const response = await this.request(`${LRCLIB}/search?${params}`);
     if (!response.ok) throw new Error(`lrclib ${response.status}`);
     const items = await response.json();
-    return toResult(pickClosest(Array.isArray(items) ? items : [], duration));
+    return toResult(pickClosest(Array.isArray(items) ? items : [], duration), track.duration);
   }
 }
 
 function firstArtist(artist) {
   return String(artist || '').split(', ')[0];
+}
+
+/** "곡 (feat. X)"·"곡 - Remastered 2011" → "곡" */
+function baseTitle(title) {
+  const text = String(title || '');
+  return text.replace(/\s*[([].*$/, '').replace(/\s+-\s+.*$/, '').trim() || text;
+}
+
+/** 시간 없는 가사 → 곡 길이에 고르게 나눈 줄. 머리말·크레딧·[파트 이름] 줄은 뺀다. */
+function plainResult(text, duration) {
+  const rows = String(text || '').split(/\r?\n/).map((row) => row.trim());
+  const credit = /^(lyrics by|composed by|arranged by|produced by|paroles de la chanson|작사|작곡|편곡)\b|^\[.*\]$/i;
+  const kept = rows.filter((row, i) => row && !credit.test(row) && !(i === 0 && / - /.test(row) && rows[1] && credit.test(rows[1])));
+  if (!kept.length) return { status: 'none', lines: [] };
+  const seconds = duration > 0 ? duration : 0;
+  return { status: 'plain', lines: seconds ? kept.map((line, i) => ({ time: (seconds * i) / kept.length, text: line })) : [] };
 }
 
 function pickClosest(items, duration) {
@@ -96,12 +145,12 @@ function pickClosest(items, duration) {
   return candidates.find((item) => item.syncedLyrics) || candidates.find((item) => item.instrumental || item.plainLyrics) || null;
 }
 
-function toResult(item) {
+function toResult(item, duration) {
   if (!item) return { status: 'none', lines: [] };
   if (item.instrumental) return { status: 'instrumental', lines: [] };
   const lines = parseLrc(item.syncedLyrics);
   if (lines.some((line) => line.text)) return { status: 'synced', lines };
-  if (item.plainLyrics) return { status: 'plain', lines: [] };
+  if (item.plainLyrics) return plainResult(item.plainLyrics, duration);
   return { status: 'none', lines: [] };
 }
 

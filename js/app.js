@@ -220,8 +220,10 @@ function updateLyrics(t, track) {
 function loadLyrics(track) {
   lyricsService.load(track).then((result) => {
     if (lyricsTrackId !== track.id) return;
-    renderLyrics(result);
-    if (result.status === 'error') {
+    // 예비 가사를 보여 주는 중이면 다시 시도가 실패해도 그대로 둔다
+    const showingPlain = document.getElementById('lyrics-lines').classList.contains('plain');
+    if (!(showingPlain && (result.status === 'plain' || result.status === 'error'))) renderLyrics(result);
+    if (result.status === 'error' || result.retry) {
       // 가사 서버가 잠시 멈춰도 곡을 넘기지 않아도 저절로 나오게
       lyricsRetryTimer = setTimeout(() => {
         if (lyricsTrackId === track.id) loadLyrics(track);
@@ -231,7 +233,7 @@ function loadLyrics(track) {
 }
 
 function renderLyrics(result) {
-  if (result.status !== 'synced') {
+  if (!result.lines.length) {
     const messages = {
       plain: '이 곡은 시간이 맞춰진 가사가 없어요',
       instrumental: '연주곡이에요',
@@ -241,6 +243,7 @@ function renderLyrics(result) {
     return;
   }
   const inner = document.getElementById('lyrics-lines');
+  inner.classList.toggle('plain', result.status === 'plain'); // 시간이 없으면 지금 줄을 강조하지 않는다
   inner.replaceChildren(...result.lines.map((line) => {
     const p = document.createElement('p');
     p.textContent = line.text || '♪';
@@ -253,6 +256,7 @@ function renderLyrics(result) {
 function showLyricsMessage(text) {
   lyricsLines = [];
   const inner = document.getElementById('lyrics-lines');
+  inner.classList.remove('plain');
   const p = document.createElement('p');
   p.className = 'message';
   p.textContent = text;
