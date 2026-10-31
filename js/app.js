@@ -180,8 +180,9 @@ function relayout() {
 
 // ---------- 가사 ----------
 
+/** 예전에 저장한 'bottom'도 켜짐으로 읽는다 (위치는 오른쪽 하나로 정리됨) */
 function lyricsPositionFromPref(value) {
-  return value === 'right' || value === 'bottom' ? value : null;
+  return value === 'right' || value === 'bottom' ? 'right' : null;
 }
 
 /** 배치가 정한 가사 칸에 맞춘다. 끄거나 작은 창이면 숨긴다. */
@@ -192,8 +193,8 @@ function applyLyricsBox() {
   el.hidden = !box || Boolean(pipWindow);
   if (el.hidden) return;
   Object.assign(el.style, { left: `${box.x}px`, top: `${box.y}px`, width: `${box.w}px`, height: `${box.h}px` });
-  // 오른쪽 칸은 왼쪽 정렬, 아래 칸(턴테이블 밑에 넓게)은 가운데 정렬
-  el.classList.toggle('align-center', renderer.lyricsPosition === 'bottom' || renderer.mode !== 'landscape');
+  // 오른쪽 칸은 왼쪽 정렬, 세로 화면의 아래 칸은 가운데 정렬
+  el.classList.toggle('align-center', renderer.mode !== 'landscape');
   lyricsIndex = -2; // 칸 크기가 바뀌었으니 다시 가운데 맞춤
   if (!lyricsLines.length) centerLyricsOn(document.getElementById('lyrics-lines').firstElementChild);
 }
@@ -569,7 +570,7 @@ function syncSettings() {
   const closest = options.reduce((best, o) => (Math.abs(Number(o.value) - rpm) < Math.abs(Number(best.value) - rpm) ? o : best), options[0]);
   $('opt-rpm').value = closest.value;
   $('opt-debug').checked = !$('debug').hidden;
-  $('opt-lyrics').value = renderer && renderer.lyricsPosition ? renderer.lyricsPosition : 'off';
+  $('opt-lyrics').checked = Boolean(renderer && renderer.lyricsPosition);
 }
 
 $('connect').addEventListener('click', () => connectSpotify());
@@ -602,9 +603,10 @@ $('opt-rpm').addEventListener('change', (e) => {
 });
 
 $('opt-lyrics').addEventListener('change', (e) => {
-  prefs.set('lyrics', e.target.value);
+  const value = e.target.checked ? 'right' : 'off';
+  prefs.set('lyrics', value);
   if (!renderer) return;
-  renderer.lyricsPosition = lyricsPositionFromPref(e.target.value);
+  renderer.lyricsPosition = lyricsPositionFromPref(value);
   lyricsTrackId = undefined; // 켜면 지금 곡 가사부터 불러온다
   relayout();
 });

@@ -457,7 +457,7 @@ test('세로·가로·iPad 배치에서 톤암이 홈에 맞고 화면 안에 �
   }
 });
 
-test('가사 오른쪽·아래: 가사 칸이 LP·톤암과 겹치지 않고 화면 안에', () => {
+test('가사: 가사 칸이 LP·톤암과 겹치지 않고 화면 안에', () => {
   const screens = [
     { w: 1280, h: 720, insets: { top: 0, bottom: 0, left: 0, right: 0 } },
     { w: 1920, h: 1000, insets: { top: 0, bottom: 0, left: 0, right: 0 } },
@@ -465,20 +465,18 @@ test('가사 오른쪽·아래: 가사 칸이 LP·톤암과 겹치지 않고 화
     { w: 390, h: 844, insets: { top: 47, bottom: 34, left: 0, right: 0 } },
   ];
   for (const s of screens) {
-    for (const lyrics of ['right', 'bottom']) {
-      const layout = computeLayout(s.w, s.h, s.insets, { lyrics });
-      const box = layout.lyricsBox;
-      const label = `${s.w}x${s.h} ${lyrics}`;
-      expect(box && box.w > 150 && box.h >= 80, `${label} 가사 칸이 작음 ${JSON.stringify(box)}`);
-      expect(box.x >= 0 && box.y >= 0 && box.x + box.w <= s.w && box.y + box.h <= s.h, `${label} 가사 칸이 화면 밖`);
-      const rig = new TonearmRig({ maxRight: layout.maxRight, maxUp: layout.maxUp });
-      expect(rig.fitError < 0.02, `${label} fitError ${rig.fitError.toFixed(3)}`);
-      const discBottom = layout.center.y + layout.radius;
-      const armRight = layout.center.x + rig.pivot.x * layout.radius;
-      const beside = box.x >= armRight;
-      const below = box.y >= discBottom - 1;
-      expect(beside || below, `${label} 가사 칸이 LP·톤암과 겹침`);
-    }
+    const layout = computeLayout(s.w, s.h, s.insets, { lyrics: 'right' });
+    const box = layout.lyricsBox;
+    const label = `${s.w}x${s.h}`;
+    expect(box && box.w > 150 && box.h >= 80, `${label} 가사 칸이 작음 ${JSON.stringify(box)}`);
+    expect(box.x >= 0 && box.y >= 0 && box.x + box.w <= s.w && box.y + box.h <= s.h, `${label} 가사 칸이 화면 밖`);
+    const rig = new TonearmRig({ maxRight: layout.maxRight, maxUp: layout.maxUp });
+    expect(rig.fitError < 0.02, `${label} fitError ${rig.fitError.toFixed(3)}`);
+    const discBottom = layout.center.y + layout.radius;
+    const armRight = layout.center.x + rig.pivot.x * layout.radius;
+    const beside = box.x >= armRight;
+    const below = box.y >= discBottom - 1;
+    expect(beside || below, `${label} 가사 칸이 LP·톤암과 겹침`);
   }
 });
 

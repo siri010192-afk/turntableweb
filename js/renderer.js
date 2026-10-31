@@ -30,8 +30,8 @@ export function pipModeFor(width, height) {
 const SLEEVE_GROUP = 1 + 0.21 + ARM_REACH * 0.5;
 
 /**
- * lyrics: null | 'right' | 'bottom' — 가사 자리를 비우고 lyricsBox({ x, y, w, h })를 함께 돌려준다.
- * 세로 화면에는 오른쪽 자리가 없어서 'right'도 아래에 둔다.
+ * lyrics: null | 'right' — 가사 자리를 비우고 lyricsBox({ x, y, w, h })를 함께 돌려준다.
+ * 세로 화면에는 오른쪽 자리가 없어서 아래에 둔다.
  */
 export function computeLayout(width, height, insets = { top: 0, bottom: 0, left: 0, right: 0 }, { compact = false, lyrics = null } = {}) {
   if (compact) return computeCompactLayout(width, height);
@@ -50,14 +50,10 @@ export function computeLayout(width, height, insets = { top: 0, bottom: 0, left:
     if (lyrics === 'right') {
       // 오른쪽 칸 (5줄): 턴테이블은 그 왼쪽에 들어가게 줄인다.
       sleeveSize = Math.min(sleeveSize, (width - right - columnWidth - 24 - left) / SLEEVE_GROUP);
-    } else if (lyrics === 'bottom') {
-      // 아래 칸 (3줄): 재킷·LP는 위로 붙인다
-      sleeveSize = Math.min(sleeveSize, avail - lineHeight * LYRICS_LINES.bottom - 12);
     }
     sleeveSize = Math.max(1, sleeveSize);
     const radius = sleeveSize * 0.5;
-    const centerY = lyrics === 'bottom' ? top + sleeveSize / 2 : top + avail / 2;
-    const center = { x: left + sleeveSize + radius * 0.42, y: centerY };
+    const center = { x: left + sleeveSize + radius * 0.42, y: top + avail / 2 };
     if (lyrics === 'right') {
       // 설정 버튼 줄 아래 ~ 곡 정보 위 안에서, LP 중심 높이에 맞춘다
       const regionTop = insets.top + 64;
@@ -66,12 +62,6 @@ export function computeLayout(width, height, insets = { top: 0, bottom: 0, left:
       const y = Math.max(regionTop, Math.min(regionBottom - h, center.y - h / 2));
       lyricsBox = { x: width - right - columnWidth, y, w: columnWidth, h };
       armLimit = lyricsBox.x - 16;
-    } else if (lyrics === 'bottom') {
-      // LP 바로 밑, 곡 정보 칸 왼쪽까지
-      const y = top + sleeveSize + 12;
-      const groupRight = left + sleeveSize * SLEEVE_GROUP;
-      const w = Math.min(groupRight, width - right - hudWidth(width, height) - 24) - left;
-      lyricsBox = { x: left, y, w, h: Math.min(height - bottom - y, lineHeight * LYRICS_LINES.bottom) };
     }
     return {
       mode: 'landscape',
@@ -85,7 +75,7 @@ export function computeLayout(width, height, insets = { top: 0, bottom: 0, left:
   }
   const top = insets.top + 60; // 설정 버튼 줄
   const bottom = insets.bottom + 120; // 아래쪽 제목·버튼
-  const lyricsHeight = lyrics ? lyricsLineHeight(width, height) * LYRICS_LINES.bottom + 4 : 0;
+  const lyricsHeight = lyrics ? lyricsLineHeight(width, height) * LYRICS_LINES.below + 4 : 0;
   const avail = Math.max(1, height - top - bottom - lyricsHeight);
   const radius = Math.min(width * 0.44, avail * 0.48);
   const center = { x: width * 0.42, y: top + avail / 2 };
@@ -100,18 +90,15 @@ export function computeLayout(width, height, insets = { top: 0, bottom: 0, left:
   };
 }
 
-/** 가로 화면 곡 정보 칸(.hud)의 폭·높이 어림값 (styles.css 가로 규칙과 맞춘다) */
+/** 가로 화면 곡 정보 칸(.hud)의 높이 어림값 (styles.css 가로 규칙과 맞춘다) */
 function isWideScreen(width, height) {
   return width >= 900 && height >= 500;
-}
-function hudWidth(width, height) {
-  return isWideScreen(width, height) ? Math.min(380, width * 0.32) : Math.min(260, width * 0.3);
 }
 function hudHeight(width, height) {
   return isWideScreen(width, height) ? 180 : 150;
 }
 /** 가사 칸에 보이는 줄 수 (가운데가 지금 줄, 위아래 끝 줄은 흐려진다) */
-const LYRICS_LINES = { right: 5.4, bottom: 3.4 };
+const LYRICS_LINES = { right: 5.4, below: 3.4 };
 /** 가사 한 줄 높이 어림값 (styles.css .lyrics p: 글자 × 1.35 + 위아래 여백) */
 function lyricsLineHeight(width, height) {
   return isWideScreen(width, height) ? 22 * 1.35 + 12 : 17 * 1.35 + 10;
@@ -236,7 +223,7 @@ export class TurntableRenderer {
     this.useCoverBackground = true;
     /** 재킷과 LP 중 무엇이 앞인지 (가로·작은 창에서 재킷을 누르면 바뀐다) */
     this.sleeveOnTop = false;
-    /** 가사 자리: null(끔) | 'right' | 'bottom'. 바꾸면 layout()을 다시 부른다. 작은 창에는 가사가 없다. */
+    /** 가사 자리: null(끔) | 'right'. 바꾸면 layout()을 다시 부른다. 작은 창에는 가사가 없다. */
     this.lyricsPosition = null;
     this.lyricsBox = null;
     this.width = 0;
