@@ -2,8 +2,8 @@
 // 상태는 화면이 보일 때만 주기적으로 읽고(기본 1.5초), 그 사이 위치는 로컬 시계로 보간한다.
 // 재생 조종은 Premium이 필요하다.
 
-import { PlaybackTimeline } from './motion.js?v=202610311717';
-import { ProviderError } from './mock-provider.js?v=202610311717';
+import { PlaybackTimeline } from './motion.js?v=202610311722';
+import { ProviderError } from './mock-provider.js?v=202610311722';
 
 const API = 'https://api.spotify.com/v1';
 const DEFAULT_PALETTE = { base: '#D9643A', band: '#F3D9B1', ink: '#2A140B', backgroundTint: '#2B1A12' };
