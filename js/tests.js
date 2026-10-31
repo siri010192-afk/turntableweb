@@ -1,12 +1,12 @@
 // 브라우저에서 돌리는 단위 테스트 (tests.html). Swift Core 테스트와 같은 시나리오를 확인한다.
 
-import { MockProvider } from './mock-provider.js?v=202610311722';
-import { Easing, MotionSpec, PlaybackTimeline, SpinRamp, TimeText, TonearmRig, Tween } from './motion.js?v=202610311722';
-import { SpotifyAuth } from './spotify-auth.js?v=202610311722';
-import { SpotifyProvider, mapTrack } from './spotify-provider.js?v=202610311722';
-import { PlayerStore } from './store.js?v=202610311722';
-import { COMPACT_TEXT_AREA, computeLayout } from './renderer.js?v=202610311722';
-import { LyricsService, lineIndexAt, parseLrc } from './lyrics.js?v=202610311722';
+import { MockProvider } from './mock-provider.js?v=202610311736';
+import { Easing, MotionSpec, PlaybackTimeline, SpinRamp, TimeText, TonearmRig, Tween } from './motion.js?v=202610311736';
+import { SpotifyAuth } from './spotify-auth.js?v=202610311736';
+import { SpotifyProvider, mapTrack } from './spotify-provider.js?v=202610311736';
+import { PlayerStore } from './store.js?v=202610311736';
+import { COMPACT_TEXT_AREA, computeLayout } from './renderer.js?v=202610311736';
+import { LyricsService, lineIndexAt, parseLrc } from './lyrics.js?v=202610311736';
 
 const results = [];
 const tests = [];

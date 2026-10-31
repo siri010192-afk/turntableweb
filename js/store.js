@@ -4,7 +4,7 @@
 // 연출(톤암 이동, 디스크 교체)은 한 번에 하나의 시퀀스로 돌고, 새 동작이 오면 이전 시퀀스를 취소한다.
 // 시퀀스가 없을 때 서비스 상태가 바뀌면(제어센터, 이어폰, Spotify 앱) 서비스 상태에 맞춘다.
 
-import { Easing, MotionSpec, PlaybackTimeline, SpinRamp, TonearmRig, Tween } from './motion.js?v=202610311722';
+import { Easing, MotionSpec, PlaybackTimeline, SpinRamp, TonearmRig, Tween } from './motion.js?v=202610311736';
 
 export const CANCELLED = Symbol('cancelled');
 
