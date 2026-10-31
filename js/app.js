@@ -53,7 +53,7 @@ let lyricsTrackId = undefined; // 가사를 띄운 곡 (undefined면 다시 불�
 let lyricsLines = []; // 시간 맞춘 가사 줄 (없으면 안내 문구만)
 let lyricsIndex = -2; // 지금 강조한 줄 (-2: 아직 배치 전)
 let lyricsRetryTimer = null; // 가사 서버 오류 뒤 다시 시도
-const LYRICS_RETRY_SECONDS = 30;
+const LYRICS_RETRY_SECONDS = 60;
 
 checkForUpdate();
 document.addEventListener('visibilitychange', () => {
@@ -243,7 +243,7 @@ function renderLyrics(result) {
     return;
   }
   const inner = document.getElementById('lyrics-lines');
-  inner.classList.toggle('plain', result.status === 'plain'); // 시간이 없으면 지금 줄을 강조하지 않는다
+  inner.classList.toggle('plain', result.status === 'plain'); // 시간이 없으면 줄 위치가 어림임을 알린다
   inner.replaceChildren(...result.lines.map((line) => {
     const p = document.createElement('p');
     p.textContent = line.text || '♪';
@@ -265,13 +265,12 @@ function showLyricsMessage(text) {
   centerLyricsOn(p);
 }
 
-/** index 줄을 진하게, 바로 옆 줄은 조금 덜 연하게, 그 줄을 칸 가운데로 */
+/** index 줄만 진하게, 그 줄을 칸 가운데로 */
 function setLyricsIndex(index) {
   lyricsIndex = index;
   const lines = document.getElementById('lyrics-lines').children;
   for (let i = 0; i < lines.length; i += 1) {
     lines[i].classList.toggle('current', i === index);
-    lines[i].classList.toggle('near', Math.abs(i - index) === 1 && index >= 0);
   }
   centerLyricsOn(lines[Math.max(0, index)]);
 }

@@ -532,6 +532,23 @@ test('LRCLIB 장애면 예비 가사를 곡 길이에 나눠 주고, 복구되�
   expect(synced.status === 'synced' && !synced.retry, JSON.stringify(synced));
 });
 
+test('LRCLIB 장애면 LyricsPlus의 시간 맞춘 가사(밀리초)를 먼저 쓴다', async () => {
+  const urls = [];
+  const fetchImpl = async (url) => {
+    urls.push(url);
+    if (url.includes('lyricsplus')) {
+      return { ok: true, status: 200, json: async () => ({ lyrics: [{ time: 33642, text: '둘째 줄' }, { time: 9017, text: '첫 줄 ' }, { time: 50000, text: '' }] }) };
+    }
+    return { ok: false, status: 502, json: async () => ({}) };
+  };
+  const service = new LyricsService({ fetchImpl });
+  const track = { id: 't4', title: '제목', artist: '가수', album: '앨범', duration: 200 };
+  const result = await service.load(track);
+  expect(result.status === 'synced' && !result.retry, JSON.stringify(result));
+  expect(result.lines.length === 2 && result.lines[0].time === 9.017 && result.lines[0].text === '첫 줄', JSON.stringify(result.lines));
+  expect(!urls.some((u) => u.includes('lyrics.ovh')), '시간 맞춘 가사가 있으면 예비로 가지 않는다');
+});
+
 test('가사 찾기: 정확히 없으면 검색해서 길이가 가까운 시간 맞춘 가사', async () => {
   const urls = [];
   const fetchImpl = async (url) => {

@@ -1,10 +1,12 @@
 // 시간이 맞춰진 가사 (설정에서 켤 때만). Spotify Web API에는 가사가 없어서 공개 가사 DB LRCLIB(lrclib.net)에서 받는다.
 // 키가 필요 없고 CORS가 열려 있다 (단 서버 장애 때 Cloudflare 502에는 CORS 헤더가 없어 브라우저에선 fetch 실패로 보인다).
-// 시간 맞춘 가사를 못 받으면 lyrics.ovh(키 없음, CORS 허용, 시간 정보 없음)를 예비로 쓴다.
+// 없거나 실패하면 LyricsPlus(비공식 공개 서버, 키 없음, CORS 허용, 시간 맞춘 가사, 요청이 몰리면 429),
+// 그래도 없으면 lyrics.ovh(키 없음, CORS 허용, 시간 정보 없음)를 쓴다.
 // 보내는 정보는 곡 제목·가수·앨범·길이뿐.
 // LRCLIB에 없는 곡(특히 국내 곡 일부)은 "가사를 찾지 못했어요"로 끝난다.
 
 const LRCLIB = 'https://lrclib.net/api';
+const LYRICS_PLUS = 'https://lyricsplus.binimum.org/v2/lyrics/get';
 const LYRICS_OVH = 'https://api.lyrics.ovh/v1';
 const REQUEST_TIMEOUT_MS = 10000;
 
@@ -71,10 +73,13 @@ export class LyricsService {
     let failed = false;
     try {
       best = await this.fetchLrclib(track);
-      if (best.status !== 'none') return best;
+      if (best.status === 'synced' || best.status === 'instrumental') return best;
     } catch {
       failed = true;
     }
+    const synced = await this.fetchLyricsPlus(track).catch(() => null);
+    if (synced) return synced;
+    if (best && best.status === 'plain') return best;
     const backup = await this.fetchLyricsOvh(track).catch(() => null);
     if (backup) return { ...backup, retry: failed };
     if (failed) throw new Error('lyrics unavailable');
@@ -84,6 +89,20 @@ export class LyricsService {
   request(url) {
     const options = typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) } : {};
     return this.fetchImpl(url, options);
+  }
+
+  async fetchLyricsPlus(track) {
+    const params = new URLSearchParams({ title: baseTitle(track.title), artist: firstArtist(track.artist) });
+    if (track.album) params.set('album', track.album);
+    if (track.duration > 0) params.set('duration', String(Math.round(track.duration)));
+    const response = await this.request(`${LYRICS_PLUS}?${params}`);
+    if (!response.ok) return null;
+    const body = await response.json();
+    const lines = (Array.isArray(body.lyrics) ? body.lyrics : [])
+      .filter((line) => Number.isFinite(line.time) && line.text)
+      .map((line) => ({ time: line.time / 1000, text: String(line.text).trim() }))
+      .sort((a, b) => a.time - b.time);
+    return lines.length ? { status: 'synced', lines } : null;
   }
 
   async fetchLyricsOvh(track) {
