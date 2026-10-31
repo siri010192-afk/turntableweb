@@ -48,12 +48,19 @@ let fpsStart = performance.now();
 let fps = 0;
 let lastHaptic = '-';
 let loopToken = 0;
-const lyricsService = new LyricsService();
+const lyricsService = new LyricsService({
+  alternateNames: (track) => (provider && provider.englishNames ? provider.englishNames(track) : null),
+});
 let lyricsTrackId = undefined; // 가사를 띄운 곡 (undefined면 다시 불러온다)
 let lyricsLines = []; // 시간 맞춘 가사 줄 (없으면 안내 문구만)
 let lyricsIndex = -2; // 지금 강조한 줄 (-2: 아직 배치 전)
 let lyricsRetryTimer = null; // 가사 서버 오류 뒤 다시 시도
 const LYRICS_RETRY_SECONDS = 60;
+const LYRICS_SCROLL_RETURN_SECONDS = 5; // 휠을 멈추고 이만큼 지나면 지금 줄로 돌아간다
+const LYRICS_LEAD_DEFAULT = 1.5; // 가사를 재생 위치보다 앞당기는 초 (설정에서 바꾼다)
+let lyricsLead = LYRICS_LEAD_DEFAULT;
+let lyricsScrollY = null; // 사용자가 직접 굴린 위치 (null: 지금 줄을 따라감)
+let lyricsScrollTimer = null;
 
 checkForUpdate();
 document.addEventListener('visibilitychange', () => {
@@ -156,6 +163,7 @@ function start(p) {
   renderer.useCoverBackground = prefs.get('coverBg', true);
   renderer.sleeveOnTop = prefs.get('sleeveOnTop', false);
   renderer.lyricsPosition = lyricsPositionFromPref(prefs.get('lyrics', 'off'));
+  lyricsLead = Number(prefs.get('lyricsLead', LYRICS_LEAD_DEFAULT));
 
   $('welcome').hidden = true;
   $('app').hidden = false;
@@ -212,8 +220,8 @@ function updateLyrics(t, track) {
     if (track) loadLyrics(track);
   }
   if (!lyricsLines.length) return;
-  // 화면에 그려지는 순간보다 조금 앞서 바꿔야 노래와 맞게 느껴진다
-  const index = lineIndexAt(lyricsLines, store.displayPosition(t) + 0.25);
+  // 사용자 보고로 줄이 늦어 앞당긴다 (Spotify가 알려 주는 위치가 소리보다 늦다고 추정)
+  const index = lineIndexAt(lyricsLines, store.displayPosition(t) + lyricsLead);
   if (index !== lyricsIndex) setLyricsIndex(index);
 }
 
@@ -242,6 +250,7 @@ function renderLyrics(result) {
     showLyricsMessage(messages[result.status] || '가사를 찾지 못했어요');
     return;
   }
+  stopLyricsScroll();
   const inner = document.getElementById('lyrics-lines');
   inner.classList.toggle('plain', result.status === 'plain'); // 시간이 없으면 줄 위치가 어림임을 알린다
   inner.replaceChildren(...result.lines.map((line) => {
@@ -254,6 +263,7 @@ function renderLyrics(result) {
 }
 
 function showLyricsMessage(text) {
+  stopLyricsScroll();
   lyricsLines = [];
   const inner = document.getElementById('lyrics-lines');
   inner.classList.remove('plain');
@@ -279,9 +289,56 @@ function centerLyricsOn(line) {
   const el = document.getElementById('lyrics');
   const inner = document.getElementById('lyrics-lines');
   if (!line || el.hidden) return;
+  if (lyricsScrollY != null) return; // 사용자가 보는 중에는 끌어가지 않는다
   const offset = el.clientHeight / 2 - (line.offsetTop + line.offsetHeight / 2);
   inner.style.transform = `translateY(${Math.round(offset)}px)`;
 }
+
+/** 전체 가사 훑어보기: dy만큼 굴리고, 멈춘 뒤 잠시 지나면 지금 줄로 돌아간다. */
+function scrollLyricsBy(dy) {
+  const el = document.getElementById('lyrics');
+  const inner = document.getElementById('lyrics-lines');
+  const first = inner.firstElementChild;
+  const last = inner.lastElementChild;
+  if (!lyricsLines.length || !first || !last) return;
+  const middle = el.clientHeight / 2;
+  const highest = middle - (first.offsetTop + first.offsetHeight / 2);
+  const lowest = middle - (last.offsetTop + last.offsetHeight / 2);
+  const from = lyricsScrollY != null ? lyricsScrollY : new DOMMatrixReadOnly(getComputedStyle(inner).transform).m42;
+  lyricsScrollY = Math.min(highest, Math.max(lowest, from - dy));
+  inner.classList.add('scrolling');
+  inner.style.transform = `translateY(${Math.round(lyricsScrollY)}px)`;
+  clearTimeout(lyricsScrollTimer);
+  lyricsScrollTimer = setTimeout(returnLyricsToCurrent, LYRICS_SCROLL_RETURN_SECONDS * 1000);
+}
+
+function stopLyricsScroll() {
+  clearTimeout(lyricsScrollTimer);
+  lyricsScrollY = null;
+  document.getElementById('lyrics-lines').classList.remove('scrolling');
+}
+
+function returnLyricsToCurrent() {
+  stopLyricsScroll();
+  centerLyricsOn(document.getElementById('lyrics-lines').children[Math.max(0, lyricsIndex)]);
+}
+
+function setupLyricsScroll() {
+  const el = document.getElementById('lyrics');
+  el.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    scrollLyricsBy(e.deltaMode === 1 ? e.deltaY * 30 : e.deltaY); // 1: 줄 단위로 알려 주는 브라우저
+  }, { passive: false });
+  let touchY = null;
+  el.addEventListener('touchstart', (e) => { touchY = e.touches[0].clientY; }, { passive: true });
+  el.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (touchY == null) return;
+    scrollLyricsBy(touchY - e.touches[0].clientY);
+    touchY = e.touches[0].clientY;
+  }, { passive: false });
+}
+setupLyricsScroll();
 
 /** 작은 창이면 크기 구간(tiny / normal / wide)을 클래스로 붙이고, wide면 정보 패널 시작 위치를 알려 준다. */
 function applyPipMode() {
@@ -586,6 +643,7 @@ function syncSettings() {
   $('opt-rpm').value = closest.value;
   $('opt-debug').checked = !$('debug').hidden;
   $('opt-lyrics').checked = Boolean(renderer && renderer.lyricsPosition);
+  $('opt-lyrics-lead').value = String(lyricsLead);
 }
 
 $('connect').addEventListener('click', () => connectSpotify());
@@ -624,6 +682,11 @@ $('opt-lyrics').addEventListener('change', (e) => {
   renderer.lyricsPosition = lyricsPositionFromPref(value);
   lyricsTrackId = undefined; // 켜면 지금 곡 가사부터 불러온다
   relayout();
+});
+
+$('opt-lyrics-lead').addEventListener('change', (e) => {
+  lyricsLead = Number(e.target.value);
+  prefs.set('lyricsLead', lyricsLead);
 });
 
 $('opt-debug').addEventListener('change', (e) => {

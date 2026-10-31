@@ -366,11 +366,12 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .lyrics {
   position: absolute;
   overflow: hidden;
-  pointer-events: none;
+  touch-action: none; /* 손가락으로 굴리면 app.js가 처리한다 */
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 16%, #000 84%, transparent 100%);
   mask-image: linear-gradient(to bottom, transparent 0, #000 16%, #000 84%, transparent 100%);
 }
 .lyrics-lines { transition: transform 0.45s cubic-bezier(0.25, 0.8, 0.3, 1); will-change: transform; }
+.lyrics-lines.scrolling { transition: none; }
 .lyrics p {
   margin: 0;
   padding: 5px 0;

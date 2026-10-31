@@ -50,9 +50,12 @@ export function lineIndexAt(lines, position) {
  * retry: true면 LRCLIB가 실패해 예비 가사를 준 것이다. 다음에 시간 맞춘 가사를 다시 찾는다.
  */
 export class LyricsService {
-  constructor({ fetchImpl = (...args) => fetch(...args) } = {}) {
+  /** alternateNames(track) → { title, artist, album } | null: 처음 이름으로 못 찾을 때 한 번 더 찾아 볼 표기 */
+  constructor({ fetchImpl = (...args) => fetch(...args), alternateNames = null } = {}) {
     this.fetchImpl = fetchImpl;
+    this.alternateNames = alternateNames;
     this.cache = new Map(); // track id → Promise<결과>
+    this.alternates = new Map(); // track id → Promise<표기> (다시 시도할 때 또 묻지 않게)
   }
 
   load(track) {
@@ -69,21 +72,50 @@ export class LyricsService {
   }
 
   async fetchFor(track) {
-    let best = null;
+    let plain = null;
     let failed = false;
-    try {
-      best = await this.fetchLrclib(track);
-      if (best.status === 'synced' || best.status === 'instrumental') return best;
-    } catch {
-      failed = true;
+    // 시간 맞춘 가사 찾기: LRCLIB → LyricsPlus. 일시적 실패는 기억했다가 나중에 다시 시도한다.
+    const findSynced = async (names) => {
+      try {
+        const result = await this.fetchLrclib(names);
+        if (result.status === 'synced' || result.status === 'instrumental') return result;
+        if (result.status === 'plain' && !plain) plain = result;
+      } catch {
+        failed = true;
+      }
+      try {
+        return await this.fetchLyricsPlus(names);
+      } catch {
+        failed = true;
+        return null;
+      }
+    };
+    const found = await findSynced(track);
+    if (found) return found;
+    const alternate = await this.alternateFor(track);
+    if (alternate) {
+      const foundByAlternate = await findSynced({ ...track, ...alternate });
+      if (foundByAlternate) return foundByAlternate;
     }
-    const synced = await this.fetchLyricsPlus(track).catch(() => null);
-    if (synced) return synced;
-    if (best && best.status === 'plain') return best;
-    const backup = await this.fetchLyricsOvh(track).catch(() => null);
+    if (plain) return { ...plain, retry: failed };
+    const backup = await this.fetchLyricsOvh(alternate ? { ...track, ...alternate } : track).catch(() => null)
+      || (alternate ? await this.fetchLyricsOvh(track).catch(() => null) : null);
     if (backup) return { ...backup, retry: failed };
     if (failed) throw new Error('lyrics unavailable');
-    return best;
+    return { status: 'none', lines: [] };
+  }
+
+  /** 처음 이름과 다른 표기가 있을 때만 돌려준다. 물어보지 못해도 가사 찾기는 계속한다. */
+  alternateFor(track) {
+    if (!this.alternateNames) return Promise.resolve(null);
+    if (!this.alternates.has(track.id)) {
+      const lookup = Promise.resolve()
+        .then(() => this.alternateNames(track))
+        .then((names) => (names && (names.title !== track.title || firstArtist(names.artist) !== firstArtist(track.artist)) ? names : null))
+        .catch(() => null);
+      this.alternates.set(track.id, lookup);
+    }
+    return this.alternates.get(track.id);
   }
 
   request(url) {
@@ -96,7 +128,8 @@ export class LyricsService {
     if (track.album) params.set('album', track.album);
     if (track.duration > 0) params.set('duration', String(Math.round(track.duration)));
     const response = await this.request(`${LYRICS_PLUS}?${params}`);
-    if (!response.ok) return null;
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`lyricsplus ${response.status}`); // 429(요청 많음) 등은 "없음"이 아니다
     const body = await response.json();
     const lines = (Array.isArray(body.lyrics) ? body.lyrics : [])
       .filter((line) => Number.isFinite(line.time) && line.text)

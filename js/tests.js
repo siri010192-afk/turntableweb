@@ -549,6 +549,43 @@ test('LRCLIB 장애면 LyricsPlus의 시간 맞춘 가사(밀리초)를 먼저 �
   expect(!urls.some((u) => u.includes('lyrics.ovh')), '시간 맞춘 가사가 있으면 예비로 가지 않는다');
 });
 
+test('한국어 표기로 못 찾으면 영어 표기로 한 번 더 찾고, 429는 없음이 아니라 실패다', async () => {
+  const urls = [];
+  let limited = true;
+  const fetchImpl = async (url) => {
+    urls.push(url);
+    if (url.includes('lyricsplus')) {
+      if (limited) return { ok: false, status: 429, json: async () => ({}) };
+      if (url.includes('title=Through+the+Night')) return { ok: true, status: 200, json: async () => ({ lyrics: [{ time: 364, text: '이 밤' }] }) };
+    }
+    if (url.includes('/search?')) return { ok: true, status: 200, json: async () => [] };
+    return { ok: false, status: 404, json: async () => ({}) };
+  };
+  let asked = 0;
+  const alternateNames = async () => { asked += 1; return { title: 'Through the Night', artist: 'IU', album: 'Palette' }; };
+  const service = new LyricsService({ fetchImpl, alternateNames });
+  const track = { id: 't5', title: '밤편지', artist: '아이유', album: '밤편지', duration: 254 };
+  expect((await service.load(track)).status === 'error', '429면 다음에 다시');
+  await Promise.resolve();
+  limited = false;
+  const result = await service.load(track);
+  expect(result.status === 'synced' && result.lines[0].text === '이 밤', JSON.stringify(result));
+  expect(asked === 1, `표기는 한 번만 묻는다 ${asked}`);
+
+  const same = new LyricsService({ fetchImpl, alternateNames: async () => { throw new Error('막힘'); } });
+  expect((await same.load({ ...track, id: 't6' })).status === 'none', '표기를 못 물어도 없음으로 끝난다');
+});
+
+test('영어 표기는 Accept-Language로 Spotify에 묻는다', async () => {
+  let seen = null;
+  const p = new SpotifyProvider(fakeAuth(), {
+    fetchFn: async (url, init) => { seen = { url, init }; return jsonResponse(200, ITEM); },
+  });
+  const names = await p.englishNames({ id: 'abc' });
+  expect(seen.url.endsWith('/tracks/abc') && seen.init.headers['Accept-Language'] === 'en' && seen.init.headers.Authorization, JSON.stringify(seen));
+  expect(names.title === ITEM.name, JSON.stringify(names));
+});
+
 test('가사 찾기: 정확히 없으면 검색해서 길이가 가까운 시간 맞춘 가사', async () => {
   const urls = [];
   const fetchImpl = async (url) => {

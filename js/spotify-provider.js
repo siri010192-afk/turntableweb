@@ -257,11 +257,19 @@ export class SpotifyProvider {
 
   // ---------- 저수준 ----------
 
-  async request(method, path, { query, body } = {}, retried = false) {
+  /** 곡 이름의 영어 표기 (계정이 한국어면 "밤편지/아이유"로 오는 곡을 가사 서비스는 영어 표기로만 찾기도 한다). */
+  async englishNames(track) {
+    const { body } = await this.request('GET', `/tracks/${encodeURIComponent(track.id)}`, { headers: { 'Accept-Language': 'en' } });
+    if (!body) return null;
+    const { title, artist, album } = mapTrack(body);
+    return { title, artist, album };
+  }
+
+  async request(method, path, { query, body, headers } = {}, retried = false) {
     const token = await this.auth.accessToken();
     const url = new URL(API + path);
     if (query) url.search = new URLSearchParams(query).toString();
-    const init = { method, headers: { Authorization: `Bearer ${token}` } };
+    const init = { method, headers: { ...headers, Authorization: `Bearer ${token}` } };
     if (body !== undefined) {
       init.headers['Content-Type'] = 'application/json';
       init.body = JSON.stringify(body);
@@ -274,7 +282,7 @@ export class SpotifyProvider {
     }
     if (response.status === 401 && !retried) {
       await this.auth.refresh();
-      return this.request(method, path, { query, body }, true);
+      return this.request(method, path, { query, body, headers }, true);
     }
     const text = response.status === 204 ? '' : await response.text().catch(() => '');
     let parsed = null;
