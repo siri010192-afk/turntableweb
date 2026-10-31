@@ -9,6 +9,7 @@ const LRCLIB = 'https://lrclib.net/api';
 const LYRICS_PLUS = 'https://lyricsplus.binimum.org/v2/lyrics/get';
 const LYRICS_OVH = 'https://api.lyrics.ovh/v1';
 const REQUEST_TIMEOUT_MS = 10000;
+const BREAK_MIN_SECONDS = 5; // 이보다 짧은 틈은 간주로 치지 않는다
 
 /**
  * LRC 본문 → [{ time(초), text }] (시간순). 한 줄에 시간표가 여러 개면 각각 한 줄로 펼친다.
@@ -41,6 +42,34 @@ export function lineIndexAt(lines, position) {
 }
 
 /**
+ * 가사 없는 구간(전주·간주·후주)을 { time, text: '', end } 줄로 넣는다. 줄 끝을 모르면 글자 수로 어림한다.
+ * LRC의 빈 줄은 앞 줄이 끝난 시각으로만 쓰고, 짧은 틈은 앞 줄을 그대로 둔다.
+ */
+export function withBreaks(lines, duration) {
+  const sung = [];
+  for (const line of lines) {
+    if (line.text) sung.push({ ...line });
+    else if (sung.length) sung[sung.length - 1].end = line.time;
+  }
+  const result = [];
+  let from = 0; // 앞 줄이 끝난 시각
+  const addBreak = (until) => {
+    if (until - from >= BREAK_MIN_SECONDS) result.push({ time: from, text: '', end: until });
+  };
+  for (const line of sung) {
+    addBreak(line.time);
+    result.push(line);
+    from = Math.max(from, line.end ?? line.time + estimatedLineSeconds(line.text));
+  }
+  if (sung.length && duration > 0) addBreak(duration);
+  return result;
+}
+
+function estimatedLineSeconds(text) {
+  return Math.min(8, Math.max(3, text.length * 0.45));
+}
+
+/**
  * 결과: { status, lines }
  * - 'synced'       시간 맞춘 가사 (lines)
  * - 'plain'        가사는 있지만 시간이 없음 (lines는 곡 길이에 고르게 나눈 어림 시간. 진행에 따라 흘려 보여 주기만 한다)
@@ -60,7 +89,7 @@ export class LyricsService {
 
   load(track) {
     if (!track) return Promise.resolve({ status: 'none', lines: [] });
-    if (track.lyrics) return Promise.resolve(toResult(track.lyrics)); // 데모 곡
+    if (track.lyrics) return Promise.resolve(toResult(track.lyrics, track.duration)); // 데모 곡
     const cached = this.cache.get(track.id);
     if (cached) return cached;
     const promise = this.fetchFor(track).catch(() => ({ status: 'error', lines: [] }));
@@ -133,9 +162,13 @@ export class LyricsService {
     const body = await response.json();
     const lines = (Array.isArray(body.lyrics) ? body.lyrics : [])
       .filter((line) => Number.isFinite(line.time) && line.text)
-      .map((line) => ({ time: line.time / 1000, text: String(line.text).trim() }))
+      .map((line) => ({
+        time: line.time / 1000,
+        text: String(line.text).trim(),
+        ...(line.duration > 0 ? { end: (line.time + line.duration) / 1000 } : {}),
+      }))
       .sort((a, b) => a.time - b.time);
-    return lines.length ? { status: 'synced', lines } : null;
+    return lines.length ? { status: 'synced', lines: withBreaks(lines, track.duration) } : null;
   }
 
   async fetchLyricsOvh(track) {
@@ -201,7 +234,7 @@ function toResult(item, duration) {
   if (!item) return { status: 'none', lines: [] };
   if (item.instrumental) return { status: 'instrumental', lines: [] };
   const lines = parseLrc(item.syncedLyrics);
-  if (lines.some((line) => line.text)) return { status: 'synced', lines };
+  if (lines.some((line) => line.text)) return { status: 'synced', lines: withBreaks(lines, duration) };
   if (item.plainLyrics) return plainResult(item.plainLyrics, duration);
   return { status: 'none', lines: [] };
 }

@@ -386,6 +386,15 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
   overflow-wrap: anywhere;
 }
 .lyrics p.current { color: #fff; }
+.lyrics p.break span {
+  display: inline-block;
+  width: 0.42em;
+  height: 0.42em;
+  margin-right: 0.42em;
+  border-radius: 50%;
+  background: currentColor;
+}
+.lyrics p.break span:last-child { margin-right: 0; }
 .lyrics p.message { color: var(--muted); font-weight: 500; font-size: 14px; }
 .lyrics-lines.plain::before { content: "시간 정보가 없어 줄 위치는 어림이에요"; display: block; padding-bottom: 8px; font-size: 13px; color: var(--muted); }
 .lyrics.align-center p, .lyrics.align-center .lyrics-lines.plain::before { text-align: center; }

@@ -6,7 +6,7 @@ import { SpotifyAuth } from './spotify-auth.js?v=202610311736';
 import { SpotifyProvider, mapTrack } from './spotify-provider.js?v=202610311736';
 import { PlayerStore } from './store.js?v=202610311736';
 import { COMPACT_TEXT_AREA, computeLayout } from './renderer.js?v=202610311736';
-import { LyricsService, lineIndexAt, parseLrc } from './lyrics.js?v=202610311736';
+import { LyricsService, lineIndexAt, parseLrc, withBreaks } from './lyrics.js?v=202610311736';
 
 const results = [];
 const tests = [];
@@ -489,6 +489,27 @@ test('LRC 가사 읽기와 지금 줄 찾기', () => {
   expect(lineIndexAt(lines, 12.5) === 0 && lineIndexAt(lines, 61) === 1 && lineIndexAt(lines, 200) === 3, '줄 찾기');
 });
 
+test('간주: 전주·빈 줄·긴 틈·후주에 넣고 짧은 틈은 앞 줄을 그대로 둔다', () => {
+  const lines = withBreaks(parseLrc('[00:10.00]가\n[00:13.00]나\n[00:16.00]\n[00:30.00]다\n[00:33.00]\n[00:35.00]라'), 60);
+  const shape = lines.map((line) => line.text || `(${line.time}~${line.end})`).join(' ');
+  expect(shape === '(0~10) 가 나 (16~30) 다 라 (38~60)', shape);
+  expect(withBreaks(parseLrc('[00:01.00]가\n[00:04.00]나'), 0).length === 2, '틈이 없고 곡 길이를 모르면 그대로');
+});
+
+test('간주: LyricsPlus는 줄 길이로 끝을 알아 틈을 찾는다', async () => {
+  const body = { lyrics: [
+    { time: 1000, duration: 3000, text: '가' },
+    { time: 20000, duration: 2000, text: '나' },
+  ] };
+  const fetchImpl = async (url) => (String(url).includes('lyricsplus')
+    ? { ok: true, status: 200, json: async () => body }
+    : { ok: false, status: 404, json: async () => [] });
+  const result = await new LyricsService({ fetchImpl }).load({ id: 'b', title: 't', artist: 'a', duration: 22 });
+  expect(result.status === 'synced', result.status);
+  const gap = result.lines[1];
+  expect(result.lines.length === 3 && gap.text === '' && gap.time === 4 && gap.end === 20, JSON.stringify(result.lines));
+});
+
 test('가사 서버 장애(502·fetch 실패): 오류로 알리고 다시 부르면 새로 받아 온다', async () => {
   let mode = 'network';
   const fetchImpl = async () => {
@@ -545,7 +566,8 @@ test('LRCLIB 장애면 LyricsPlus의 시간 맞춘 가사(밀리초)를 먼저 �
   const track = { id: 't4', title: '제목', artist: '가수', album: '앨범', duration: 200 };
   const result = await service.load(track);
   expect(result.status === 'synced' && !result.retry, JSON.stringify(result));
-  expect(result.lines.length === 2 && result.lines[0].time === 9.017 && result.lines[0].text === '첫 줄', JSON.stringify(result.lines));
+  const sung = result.lines.filter((line) => line.text);
+  expect(sung.length === 2 && sung[0].time === 9.017 && sung[0].text === '첫 줄', JSON.stringify(result.lines));
   expect(!urls.some((u) => u.includes('lyrics.ovh')), '시간 맞춘 가사가 있으면 예비로 가지 않는다');
 });
 

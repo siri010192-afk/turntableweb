@@ -57,7 +57,7 @@ let lyricsIndex = -2; // 지금 강조한 줄 (-2: 아직 배치 전)
 let lyricsRetryTimer = null; // 가사 서버 오류 뒤 다시 시도
 const LYRICS_RETRY_SECONDS = 60;
 const LYRICS_SCROLL_RETURN_SECONDS = 5; // 휠을 멈추고 이만큼 지나면 지금 줄로 돌아간다
-const LYRICS_LEAD_DEFAULT = 1.5; // 가사를 재생 위치보다 앞당기는 초 (설정에서 바꾼다)
+const LYRICS_LEAD_DEFAULT = 0.5; // 가사를 재생 위치보다 앞당기는 초 (설정에서 바꾼다)
 let lyricsLead = LYRICS_LEAD_DEFAULT;
 let lyricsScrollY = null; // 사용자가 직접 굴린 위치 (null: 지금 줄을 따라감)
 let lyricsScrollTimer = null;
@@ -221,8 +221,20 @@ function updateLyrics(t, track) {
   }
   if (!lyricsLines.length) return;
   // 사용자 보고로 줄이 늦어 앞당긴다 (Spotify가 알려 주는 위치가 소리보다 늦다고 추정)
-  const index = lineIndexAt(lyricsLines, store.displayPosition(t) + lyricsLead);
+  const position = store.displayPosition(t) + lyricsLead;
+  const index = lineIndexAt(lyricsLines, position);
   if (index !== lyricsIndex) setLyricsIndex(index);
+  const line = lyricsLines[index];
+  if (line && !line.text) fillBreakDots(index, (position - line.time) / (line.end - line.time));
+}
+
+/** 간주 점 세 개가 다음 가사까지 하나씩 차오른다 */
+function fillBreakDots(index, progress) {
+  const dots = document.getElementById('lyrics-lines').children[index].children;
+  for (let i = 0; i < dots.length; i += 1) {
+    const lit = Math.min(1, Math.max(0, progress * dots.length - i));
+    dots[i].style.opacity = String(0.3 + 0.7 * lit);
+  }
 }
 
 function loadLyrics(track) {
@@ -255,7 +267,13 @@ function renderLyrics(result) {
   inner.classList.toggle('plain', result.status === 'plain'); // 시간이 없으면 줄 위치가 어림임을 알린다
   inner.replaceChildren(...result.lines.map((line) => {
     const p = document.createElement('p');
-    p.textContent = line.text || '♪';
+    if (line.text) {
+      p.textContent = line.text;
+    } else {
+      p.className = 'break';
+      p.setAttribute('aria-label', '간주');
+      p.append(...[0, 1, 2].map(() => document.createElement('span')));
+    }
     return p;
   }));
   lyricsLines = result.lines;
@@ -277,8 +295,9 @@ function showLyricsMessage(text) {
 
 /** index 줄만 진하게, 그 줄을 칸 가운데로 */
 function setLyricsIndex(index) {
-  lyricsIndex = index;
   const lines = document.getElementById('lyrics-lines').children;
+  if (lines[lyricsIndex]) for (const dot of lines[lyricsIndex].children) dot.style.removeProperty('opacity');
+  lyricsIndex = index;
   for (let i = 0; i < lines.length; i += 1) {
     lines[i].classList.toggle('current', i === index);
   }
