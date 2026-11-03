@@ -2,8 +2,8 @@
 // 브라우저의 YouTube Music, Spotify 데스크톱 등 Windows 미디어 컨트롤에 나오는 앱이면 된다. iPhone에서는 쓸 수 없다.
 // 도우미는 이 PC의 http://127.0.0.1:39517 에서만 받는다. 상태는 1초마다 읽고 그 사이 위치는 로컬 시계로 보간한다.
 
-import { PlaybackTimeline } from './motion.js?v=202611040059';
-import { ProviderError } from './mock-provider.js?v=202611040059';
+import { PlaybackTimeline } from './motion.js?v=202611040101';
+import { ProviderError } from './mock-provider.js?v=202611040101';
 
 export const PC_HELPER_URL = 'http://127.0.0.1:39517';
 const PALETTE = { base: '#C0392B', band: '#F5D7D2', ink: '#2A0E0B', backgroundTint: '#2A1414' };

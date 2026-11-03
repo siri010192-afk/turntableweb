@@ -1,17 +1,17 @@
 // 화면 조립: 연결 방식 선택(Spotify / 데모), 렌더 루프, 제스처, 컨트롤, 설정.
 
-import { SPOTIFY_CLIENT_ID } from '../config.js?v=202611040059';
-import { LyricsService, lineIndexAt } from './lyrics.js?v=202611040059';
-import { MockProvider } from './mock-provider.js?v=202611040059';
-import { MotionSpec, TimeText } from './motion.js?v=202611040059';
-import { TurntableRenderer } from './renderer.js?v=202611040059';
-import { SpotifyAuth, safeStorage } from './spotify-auth.js?v=202611040059';
-import { SpotifyProvider } from './spotify-provider.js?v=202611040059';
-import { PcProvider } from './pc-provider.js?v=202611040059';
-import { PlayerStore } from './store.js?v=202611040059';
+import { SPOTIFY_CLIENT_ID } from '../config.js?v=202611040101';
+import { LyricsService, lineIndexAt } from './lyrics.js?v=202611040101';
+import { MockProvider } from './mock-provider.js?v=202611040101';
+import { MotionSpec, TimeText } from './motion.js?v=202611040101';
+import { TurntableRenderer } from './renderer.js?v=202611040101';
+import { SpotifyAuth, safeStorage } from './spotify-auth.js?v=202611040101';
+import { SpotifyProvider } from './spotify-provider.js?v=202611040101';
+import { PcProvider } from './pc-provider.js?v=202611040101';
+import { PlayerStore } from './store.js?v=202611040101';
 
 // 배포 버전. scripts/bump_web_version.py가 version.json·파일 주소의 ?v=와 함께 올린다.
-const APP_VERSION = '202611040059';
+const APP_VERSION = '202611040101';
 
 /** Document Picture-in-Picture 창 (Chrome·Edge). 열려 있으면 LP와 곡 정보·버튼이 그 창에 있다. */
 let pipWindow = null;
