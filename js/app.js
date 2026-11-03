@@ -7,6 +7,7 @@ import { MotionSpec, TimeText } from './motion.js?v=202610311927';
 import { TurntableRenderer } from './renderer.js?v=202610311927';
 import { SpotifyAuth, safeStorage } from './spotify-auth.js?v=202610311927';
 import { SpotifyProvider } from './spotify-provider.js?v=202610311927';
+import { PcProvider } from './pc-provider.js?v=202610311927';
 import { PlayerStore } from './store.js?v=202610311927';
 
 // 배포 버전. scripts/bump_web_version.py가 version.json·파일 주소의 ?v=와 함께 올린다.
@@ -102,6 +103,7 @@ async function boot() {
 
   const mode = prefs.get('mode', null);
   if (mode === 'spotify' && auth.isLoggedIn) startSpotify();
+  else if (mode === 'pc' && !isMobileDevice()) startPc();
   else if (mode === 'demo') startDemo();
   else showWelcome();
 }
@@ -111,6 +113,7 @@ async function boot() {
 function showWelcome() {
   $('welcome').hidden = false;
   $('app').hidden = true;
+  $('connect-pc').hidden = isMobileDevice(); // PC 도우미는 Windows에서만
   if (!auth.isConfigured) {
     $('connect').disabled = true;
     $('connect-note').textContent = 'config.js에 Spotify Client ID를 넣어야 연결할 수 있어요. 지금은 데모만 쓸 수 있어요.';
@@ -144,6 +147,16 @@ function startSpotify() {
   // 화면이 보이지 않으면 상태 읽기를 멈춘다 (배터리). 단 PiP 창이 떠 있으면 계속 읽는다.
   document.addEventListener('visibilitychange', syncPolling);
   start(spotify);
+}
+
+/** PC 도우미로 Windows의 음악 앱(YouTube Music 등)을 조종한다. */
+function startPc() {
+  prefs.set('mode', 'pc');
+  const pc = new PcProvider();
+  pc.onStatus(() => renderStatus());
+  pc.start();
+  document.addEventListener('visibilitychange', syncPolling);
+  start(pc);
 }
 
 function start(p) {
@@ -374,7 +387,7 @@ function applyPipMode() {
 }
 
 function syncPolling() {
-  if (!provider || provider.kind !== 'spotify') return;
+  if (!provider || !provider.start) return;
   if (document.hidden && !pipWindow) provider.stop();
   else provider.start();
 }
@@ -415,7 +428,7 @@ function updateInfo(t) {
   const id = track ? track.id : null;
   if (id !== lastTrackId) {
     lastTrackId = id;
-    setTitle(track ? track.title : provider.kind === 'spotify' ? '재생 중인 곡 없음' : 'TurnTable');
+    setTitle(track ? track.title : provider.kind !== 'mock' ? '재생 중인 곡 없음' : 'TurnTable');
     $('sub').textContent = track ? track.artist : ''; // 앨범 제목은 표시하지 않는다 (사용자 요청)
     renderStatus();
   }
@@ -473,6 +486,13 @@ function renderStatus() {
   let text = '';
   if (provider.kind === 'mock') {
     text = '데모 모드 · 소리 없이 가짜로 재생해요';
+  } else if (provider.kind === 'pc') {
+    text = {
+      connecting: 'PC 도우미에 연결하는 중…',
+      offline: 'PC 도우미가 꺼져 있어요. pc-helper 폴더의 start.cmd를 실행해 주세요.',
+      noSession: 'PC에서 YouTube Music 등으로 음악을 재생하면 여기에 나타나요.',
+      error: (provider.lastError && provider.lastError.userMessage) || 'PC 도우미와 통신하지 못했어요.',
+    }[provider.status] || (provider.appName ? `PC · ${provider.appName}` : '');
   } else if (provider.status === 'connecting') {
     text = 'Spotify에 연결하는 중…';
   } else if (provider.status === 'noDevice') {
@@ -649,12 +669,15 @@ function closePip() {
 }
 
 function syncSettings() {
-  const spotify = provider && provider.kind === 'spotify';
-  $('connection-text').textContent = spotify
-    ? 'Spotify에 연결되어 있어요. 이 기기나 다른 기기의 Spotify 앱을 원격으로 조종해요.'
-    : '데모 모드예요. 소리 없이 가짜로 재생해요.';
+  const kind = provider ? provider.kind : 'mock';
+  const spotify = kind === 'spotify';
+  $('connection-text').textContent = {
+    spotify: 'Spotify에 연결되어 있어요. 이 기기나 다른 기기의 Spotify 앱을 원격으로 조종해요.',
+    pc: 'PC 도우미로 이 PC의 음악 앱(브라우저의 YouTube Music, Spotify 데스크톱 등)을 조종해요.',
+  }[kind] || '데모 모드예요. 소리 없이 가짜로 재생해요.';
   $('connection-action').textContent = spotify ? 'Spotify 연결 끊기' : 'Spotify 연결';
-  $('switch-demo').hidden = !spotify;
+  $('switch-demo').hidden = kind === 'mock';
+  $('switch-pc').hidden = kind === 'pc' || isMobileDevice();
   $('opt-coverbg').checked = renderer ? renderer.useCoverBackground : prefs.get('coverBg', true);
   const rpm = currentRpm();
   const options = [...$('opt-rpm').options];
@@ -667,6 +690,7 @@ function syncSettings() {
 
 $('connect').addEventListener('click', () => connectSpotify());
 $('demo').addEventListener('click', () => startDemo());
+$('connect-pc').addEventListener('click', () => startPc());
 
 $('connection-action').addEventListener('click', () => {
   if (provider && provider.kind === 'spotify') {
@@ -680,6 +704,11 @@ $('connection-action').addEventListener('click', () => {
 
 $('switch-demo').addEventListener('click', () => {
   prefs.set('mode', 'demo');
+  location.replace(redirectUri);
+});
+
+$('switch-pc').addEventListener('click', () => {
+  prefs.set('mode', 'pc');
   location.replace(redirectUri);
 });
 

@@ -4,6 +4,7 @@ import { MockProvider } from './mock-provider.js?v=202610311927';
 import { Easing, MotionSpec, PlaybackTimeline, SpinRamp, TimeText, TonearmRig, Tween } from './motion.js?v=202610311927';
 import { SpotifyAuth } from './spotify-auth.js?v=202610311927';
 import { SpotifyProvider, mapTrack } from './spotify-provider.js?v=202610311927';
+import { PcProvider, mapSession } from './pc-provider.js?v=202610311927';
 import { PlayerStore } from './store.js?v=202610311927';
 import { COMPACT_TEXT_AREA, computeLayout } from './renderer.js?v=202610311927';
 import { LyricsService, lineIndexAt, parseLrc, withBreaks } from './lyrics.js?v=202610311927';
@@ -758,6 +759,79 @@ test('쓸 수 있는 기기가 없으면 Spotify 앱을 열라고 안내', async
   let error = null;
   try { await p.play(); } catch (e) { error = e; }
   expect(error && error.code === 'noDevice' && error.userMessage.includes('Spotify 앱을 열어'), error && error.userMessage);
+});
+
+// ---------- PC 도우미 ----------
+
+const PC_SESSION = { app: 'whale.exe', appName: 'Whale', id: 'abc123', title: '밤편지', artist: '아이유', album: 'Palette',
+  status: 'playing', position: 42, duration: 253, canSeek: true, canNext: true, canPrevious: true, artId: 'abc123' };
+
+function pcServer(session) {
+  const calls = [];
+  let state = { ...session };
+  const fetchFn = async (url, options = {}) => {
+    const u = new URL(url);
+    calls.push({ method: options.method, path: u.pathname, query: u.search, headers: options.headers || {} });
+    if (options.method === 'GET') return jsonResponse(200, { ok: true, version: 1, session: state });
+    return jsonResponse(200, { ok: !(u.pathname === '/seek' && state && state.canSeek === false) });
+  };
+  return { calls, fetchFn, set(next) { state = next; } };
+}
+
+test('PC 도우미: 곡 정보·재생 위치를 읽고 커버는 도우미 주소', async () => {
+  const server = pcServer(PC_SESSION);
+  const p = new PcProvider({ fetchFn: server.fetchFn, now: () => 100 });
+  await p.refresh();
+  expect(p.status === 'ok' && p.appName === 'Whale');
+  const { track, timeline } = p.snapshot;
+  expect(track.id === 'pc:abc123' && track.title === '밤편지' && track.duration === 253);
+  expect(track.artworkURL === 'http://127.0.0.1:39517/art?id=abc123', track.artworkURL);
+  expect(timeline.isPlaying && near(timeline.position, 42));
+  expect(mapSession({ ...PC_SESSION, title: '', artist: '' }) === null, '제목·가수가 없으면 곡 없음');
+});
+
+test('PC 도우미: 작은 위치 흔들림은 무시하고 큰 차이·일시정지는 반영', async () => {
+  let clock = 100;
+  const server = pcServer(PC_SESSION);
+  const p = new PcProvider({ fetchFn: server.fetchFn, now: () => clock });
+  await p.refresh();
+  const first = p.snapshot.timeline;
+  clock = 101;
+  server.set({ ...PC_SESSION, position: 43.2 });
+  await p.refresh();
+  expect(p.snapshot.timeline === first, '0.2초 차이는 예전 시간표 그대로');
+  server.set({ ...PC_SESSION, position: 80 });
+  await p.refresh();
+  expect(near(p.snapshot.timeline.position, 80), '옮긴 위치');
+  server.set({ ...PC_SESSION, position: 80, status: 'paused' });
+  await p.refresh();
+  expect(!p.snapshot.timeline.isPlaying, '일시정지');
+});
+
+test('PC 도우미: 조종은 POST + X-TurnTable 헤더, 위치 옮기기를 못 받는 앱이면 오류', async () => {
+  const server = pcServer(PC_SESSION);
+  const p = new PcProvider({ fetchFn: server.fetchFn, setTimer: () => 0, clearTimer: () => {} });
+  await p.refresh();
+  await p.pause();
+  await p.seek(12.5);
+  const posts = server.calls.filter((c) => c.method === 'POST');
+  expect(posts.length === 2 && posts.every((c) => c.headers['X-TurnTable'] === '1'));
+  expect(posts[0].path === '/pause' && posts[1].path === '/seek' && posts[1].query === '?position=12.500', JSON.stringify(posts));
+  expect(near(p.snapshot.timeline.position, 12.5) && !p.snapshot.timeline.isPlaying);
+  server.set({ ...PC_SESSION, canSeek: false });
+  await p.refresh();
+  let error = null;
+  try { await p.seek(30); } catch (e) { error = e; }
+  expect(error && error.code === 'seekFailed');
+});
+
+test('PC 도우미가 꺼져 있으면 안내 상태, 음악이 없으면 noSession', async () => {
+  const p = new PcProvider({ fetchFn: async () => { throw new TypeError('Failed to fetch'); }, setTimer: () => 0, clearTimer: () => {} });
+  await p.poll();
+  expect(p.status === 'offline' && p.lastError.userMessage.includes('start.cmd'));
+  const empty = new PcProvider({ fetchFn: pcServer(null).fetchFn });
+  await empty.refresh();
+  expect(empty.status === 'noSession' && empty.snapshot.track === null);
 });
 
 // ---------- 실행 ----------

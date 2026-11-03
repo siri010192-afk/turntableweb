@@ -72,8 +72,9 @@
     <h1>TurnTable</h1>
     <p class="lead">Spotify에서 듣는 음악을 돌아가는 레코드로. 톤암을 들어 원하는 곳에 바늘을 내려 보세요.</p>
     <button type="button" class="primary wide" id="connect">Spotify 연결</button>
+    <button type="button" class="wide" id="connect-pc" hidden>PC 음악 앱 연결 (YouTube Music 등)</button>
     <button type="button" class="wide" id="demo">데모로 둘러보기</button>
-    <p class="note" id="connect-note">Spotify Premium 계정과 iPhone의 Spotify 앱이 필요해요. 데모는 소리 없이 가짜로 재생해요.</p>
+    <p class="note" id="connect-note">Spotify Premium 계정과 iPhone의 Spotify 앱이 필요해요. PC 음악 앱 연결은 Windows에서 PC 도우미(pc-helper)를 켜 두면 YouTube Music 등을 조종해요. 데모는 소리 없이 가짜로 재생해요.</p>
   </div>
 </section>
 
@@ -86,6 +87,7 @@
       <div class="row-buttons">
         <button type="button" id="connection-action"></button>
         <button type="button" id="switch-demo">데모 모드</button>
+        <button type="button" id="switch-pc" hidden>PC 음악 앱</button>
       </div>
     </section>
     <section>
