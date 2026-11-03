@@ -10,6 +10,23 @@ const PALETTE = { base: '#C0392B', band: '#F5D7D2', ink: '#2A0E0B', backgroundTi
 const REQUEST_TIMEOUT_MS = 3000;
 const JITTER_SECONDS = 0.4; // 이보다 작은 위치 차이는 무시한다 (앱이 알려 주는 위치가 조금씩 흔들려서)
 
+/**
+ * 브라우저의 로컬 네트워크 접근 권한 ('granted' | 'prompt' | 'denied' | null).
+ * Chrome 계열은 공개 사이트가 이 PC(127.0.0.1)에 접근할 때 사용자에게 묻는다 (이름은 버전마다 다름).
+ */
+async function localNetworkPermission() {
+  if (typeof navigator === 'undefined' || !navigator.permissions) return null;
+  for (const name of ['loopback-network', 'local-network-access']) {
+    try {
+      const status = await navigator.permissions.query({ name });
+      if (status.state === 'denied') return 'denied';
+    } catch {
+      /* 이 브라우저에 없는 권한 이름 */
+    }
+  }
+  return null;
+}
+
 export function mapSession(session, base = PC_HELPER_URL) {
   if (!session || !(session.title || session.artist)) return null;
   return {
@@ -32,8 +49,10 @@ export class PcProvider {
     pollInterval = 1,
     setTimer = (fn, ms) => setTimeout(fn, ms),
     clearTimer = (id) => clearTimeout(id),
+    permissionState = localNetworkPermission,
   } = {}) {
     this.kind = 'pc';
+    this.permissionState = permissionState;
     this.base = base;
     this.fetchFn = fetchFn;
     this.now = now;
@@ -42,7 +61,7 @@ export class PcProvider {
     this.setTimer = setTimer;
     this.clearTimer = clearTimer;
     this.snapshot = { track: null, timeline: PlaybackTimeline.zero };
-    /** 'connecting' | 'ok' | 'noSession' | 'offline' | 'error' */
+    /** 'connecting' | 'ok' | 'noSession' | 'offline' | 'blocked' | 'error' */
     this.status = 'connecting';
     this.lastError = null;
     this.appName = '';
@@ -90,12 +109,16 @@ export class PcProvider {
       if (error && error.code === 'offline') {
         this.session = null;
         this.setSnapshot(null, PlaybackTimeline.zero);
-        this.setStatus('offline', error);
+        // 도우미가 꺼진 것과 브라우저가 막은 것은 fetch 실패로 똑같이 보인다. 권한으로 구분한다.
+        const blocked = (await this.permissionState().catch(() => null)) === 'denied';
+        this.setStatus(blocked ? 'blocked' : 'offline', blocked
+          ? new ProviderError('blocked', '브라우저가 PC 도우미 접근을 막고 있어요. 주소창 왼쪽 사이트 설정에서 로컬 네트워크 접근을 허용해 주세요.', 'permission denied')
+          : error);
       } else {
         this.setStatus('error', error);
       }
     }
-    this.schedulePoll(this.status === 'offline' ? 3 : this.pollInterval);
+    this.schedulePoll(this.status === 'offline' || this.status === 'blocked' ? 3 : this.pollInterval);
   }
 
   async refresh() {

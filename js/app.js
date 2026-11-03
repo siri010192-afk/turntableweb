@@ -490,6 +490,7 @@ function renderStatus() {
     text = {
       connecting: 'PC 도우미에 연결하는 중…',
       offline: 'PC 도우미가 꺼져 있어요. pc-helper 폴더의 start.cmd를 실행해 주세요.',
+      blocked: provider.lastError && provider.lastError.userMessage,
       noSession: 'PC에서 YouTube Music 등으로 음악을 재생하면 여기에 나타나요.',
       error: (provider.lastError && provider.lastError.userMessage) || 'PC 도우미와 통신하지 못했어요.',
     }[provider.status] || (provider.appName ? `PC · ${provider.appName}` : '');

@@ -826,9 +826,13 @@ test('PC 도우미: 조종은 POST + X-TurnTable 헤더, 위치 옮기기를 못
 });
 
 test('PC 도우미가 꺼져 있으면 안내 상태, 음악이 없으면 noSession', async () => {
-  const p = new PcProvider({ fetchFn: async () => { throw new TypeError('Failed to fetch'); }, setTimer: () => 0, clearTimer: () => {} });
+  const failing = async () => { throw new TypeError('Failed to fetch'); };
+  const p = new PcProvider({ fetchFn: failing, setTimer: () => 0, clearTimer: () => {}, permissionState: async () => null });
   await p.poll();
   expect(p.status === 'offline' && p.lastError.userMessage.includes('start.cmd'));
+  const blocked = new PcProvider({ fetchFn: failing, setTimer: () => 0, clearTimer: () => {}, permissionState: async () => 'denied' });
+  await blocked.poll();
+  expect(blocked.status === 'blocked' && blocked.lastError.userMessage.includes('로컬 네트워크'), '브라우저가 막으면 그 이유를 알린다');
   const empty = new PcProvider({ fetchFn: pcServer(null).fetchFn });
   await empty.refresh();
   expect(empty.status === 'noSession' && empty.snapshot.track === null);
