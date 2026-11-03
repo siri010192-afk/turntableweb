@@ -1,13 +1,13 @@
 // 브라우저에서 돌리는 단위 테스트 (tests.html). Swift Core 테스트와 같은 시나리오를 확인한다.
 
-import { MockProvider } from './mock-provider.js?v=202610311927';
-import { Easing, MotionSpec, PlaybackTimeline, SpinRamp, TimeText, TonearmRig, Tween } from './motion.js?v=202610311927';
-import { SpotifyAuth } from './spotify-auth.js?v=202610311927';
-import { SpotifyProvider, mapTrack } from './spotify-provider.js?v=202610311927';
-import { PcProvider, mapSession } from './pc-provider.js?v=202610311927';
-import { PlayerStore } from './store.js?v=202610311927';
-import { COMPACT_TEXT_AREA, computeLayout } from './renderer.js?v=202610311927';
-import { LyricsService, lineIndexAt, parseLrc, withBreaks } from './lyrics.js?v=202610311927';
+import { MockProvider } from './mock-provider.js?v=202611040059';
+import { Easing, MotionSpec, PlaybackTimeline, SpinRamp, TimeText, TonearmRig, Tween } from './motion.js?v=202611040059';
+import { SpotifyAuth } from './spotify-auth.js?v=202611040059';
+import { SpotifyProvider, mapTrack } from './spotify-provider.js?v=202611040059';
+import { PcProvider, mapSession } from './pc-provider.js?v=202611040059';
+import { PlayerStore } from './store.js?v=202611040059';
+import { COMPACT_TEXT_AREA, computeLayout } from './renderer.js?v=202611040059';
+import { LyricsService, lineIndexAt, parseLrc, withBreaks } from './lyrics.js?v=202611040059';
 
 const results = [];
 const tests = [];
